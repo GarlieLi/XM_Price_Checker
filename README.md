@@ -2,135 +2,165 @@
 
 A Python-based price monitoring and web scraping system for collecting **product-level and variant-level price and availability data** from multiple e-commerce websites.
 
-The project is designed to make Xiaomi product price checking scalable across multiple retailers. Website-specific scraping logic is separated into individual scraper modules, while a central Jupyter Notebook manages configuration, execution, data collection, and report generation.
+The project is designed to automate Xiaomi product price checking across multiple retailers. Website-specific scraping logic is separated into individual scraper modules, while a central Jupyter Notebook manages configuration, execution, data collection, processing, and report generation.
 
-The final output compares collected website prices with the **RRP after promotion** defined in the product configuration and generates a structured price-checking report.
+The final output compares collected retailer prices with the **RRP after promotion** defined in the product configuration and generates a structured price-checking report.
 
 ---
 
 ## Overview
 
-The XM Price Checker follows a modular scraping and reporting workflow:
+The XM Price Checker follows a modular workflow:
 
 1. Read the Excel configuration file.
 2. Identify enabled websites and products to monitor.
 3. Run the corresponding website scrapers.
-4. Collect product and variant-level information, including:
-   - Product name
-   - Variant / color
-   - RAM
-   - Storage
-   - Price
-   - Availability
-5. Combine the collected results into `RawData`.
+4. Collect product and variant-level information.
+5. Consolidate the collected data into `RawData`.
 6. Match the collected data with the configured products and websites.
-7. Compare website prices with the **RRP after promotion**.
+7. Compare retailer prices with the configured **RRP after promotion**.
 8. Generate the final `Results` report.
 
-The project separates **scraping logic** from **execution, data processing, and reporting logic**, making it easier to add, test, and maintain individual website scrapers.
+The system separates **website-specific scraping logic** from **execution, data processing, and reporting logic**, making it easier to maintain existing scrapers and add support for new retailers.
+
+---
+
+## Key Features
+
+- Multi-website price scraping
+- Product and variant-level data collection
+- Price and availability monitoring
+- Excel-based product and website configuration
+- Modular website-specific scraper architecture
+- Browser automation using Playwright
+- Centralized raw data collection
+- Automated price comparison against promotional RRP
+- Standardized final reporting
+- Individual scraper testing
+- Support for multiple product variants, including:
+  - RAM
+  - Storage
+  - Color
+  - Product model
+  - Availability
+
+---
+
+## Project Structure
+
+```text
+XM_Price_Checker/
+│
+├── Notebooks/
+│   └── XM_Price_Checker.ipynb
+│
+├── scrapers/
+│   ├── avans.py
+│   ├── electro.py
+│   ├── ktr.py
+│   ├── xkom.py
+│   ├── browser_runner.py
+│   └── ...
+│
+├── test_new/
+│   ├── test_avans.py
+│   ├── test_electro.py
+│   ├── test_ktr.py
+│   └── ...
+│
+├── run_price_check.py
+├── XM_Price_Checker_Python.xlsm
+└── README.md
+```
+
+> The exact list of scraper modules may change as additional retailers are added or updated.
 
 ---
 
 ## Architecture
 
-The project uses a modular architecture:
+The project follows a modular architecture built around four main components:
 
-```text
-Excel Configuration
-        │
-        ▼
-XM_Price_Checker.ipynb
-        │
-        ├── Product Configuration
-        ├── Website Configuration
-        └── Links
-        │
-        ▼
-   Enabled Scrapers
-        │
-        ├── avans.py
-        ├── electro.py
-        ├── gg.py
-        ├── ktr.py
-        ├── max_electro.py
-        ├── mediamarkt.py
-        ├── micom.py
-        └── ...
-        │
-        ▼
-Price & Availability Data
-        │
-        ▼
-     RawData
-        │
-        ▼
-Price Comparison
-        │
-        ▼
-     Results
+### 1. Excel Configuration
 
+The Excel workbook contains the configuration used by the price checker.
 
-### Notebook Controller
+It defines information such as:
 
-`XM_Price_Checker.ipynb` serves as the main controller for the price-checking workflow.
+- Products to monitor
+- Product models
+- RAM
+- Storage
+- Websites to check
+- Website links
+- Promotional RRP
+
+The configuration allows the scraping workflow to be changed without modifying the core Python logic.
+
+---
+
+### 2. Notebook Controller
+
+`Notebooks/XM_Price_Checker.ipynb` acts as the main controller of the price-checking workflow.
 
 It is responsible for:
 
-* Reading the Excel configuration
-* Determining which websites should be checked
-* Running the enabled scrapers
-* Collecting scraper results
-* Preparing the output data
-* Writing the results to `RawData`
-* Comparing website prices with the configured promotional RRP
-* Generating the final `Results` sheet
+- Reading the Excel configuration
+- Determining which websites are enabled
+- Determining which products should be checked
+- Loading the corresponding scraper modules
+- Running the enabled scrapers
+- Collecting scraper results
+- Consolidating the collected data
+- Writing the collected information to `RawData`
+- Comparing collected prices with the configured promotional RRP
+- Generating the final `Results` report
 
-### Scrapers
+The notebook therefore acts as the orchestration layer between the configuration, scrapers, and reporting process.
+
+---
+
+### 3. Website Scrapers
 
 Website-specific scraping logic is stored in the `scrapers/` directory.
 
-Each scraper is responsible for handling the structure and behavior of a particular website.
+Each scraper handles the structure and behavior of a particular retailer.
 
-This modular approach allows individual websites to be developed, tested, or updated independently.
+The modular structure means that changes to one retailer's website can generally be handled within its corresponding scraper without affecting the other websites.
 
-For example:
+---
 
-```text
-scrapers/
-├── avans.py
-├── electro.py
-├── ktr.py
-├── ...
-└── xkom.py
-```
+### 4. Browser Runner
 
-### Browser Runner
+`browser_runner.py` provides shared browser automation functionality for scrapers that require Playwright.
 
-`browser_runner.py` provides shared browser-related functionality used by scrapers that require browser automation.
+It is responsible for common browser operations such as:
 
-Keeping common browser operations in a shared module avoids duplicating the same logic across individual scrapers.
+- Starting a browser
+- Creating pages
+- Opening target URLs
+- Managing browser-based scraping execution
 
-### Tests
+Keeping this functionality in a shared module avoids duplicating browser setup code across individual scrapers.
 
-The `test_new/` directory contains tests for individual scraper modules.
-
-The tests are organized by website so that changes to one scraper can be checked independently.
+---
 
 ## Data Workflow
 
-The main data flow is:
+The overall data workflow is:
 
+```text
 Excel Configuration
         ↓
-Website Selection
+Product & Website Selection
         ↓
-Scraper Execution
+Enabled Scrapers
         ↓
 Product Discovery
         ↓
 Variant Extraction
         ↓
-Price / Availability Extraction
+Price & Availability Extraction
         ↓
 Raw Data Consolidation
         ↓
@@ -141,104 +171,278 @@ Product / Website Matching
 Price Comparison
         ↓
 Results
+```
 
 The system focuses on **variant-level data**, allowing different configurations of the same product to be tracked separately.
 
-For example, different:
+For example, the following may be represented as separate records:
 
-* Storage configurations
-* Colors
-* Product variants
-* Availability states
+- Different RAM configurations
+- Different storage configurations
+- Different colors
+- Different product variants
+- Different availability states
 
-can be represented as separate records.
+---
 
-## Adding a New Website
+## Data Output
 
-To add support for another website:
+### RawData
 
-1. Create a new scraper module inside `scrapers/`.
-2. Implement the website-specific scraping logic.
-3. Follow the existing scraper output structure.
-4. Add the website to the configuration.
-5. Add corresponding tests under `test_new/`.
-6. Enable the website in the configuration.
-7. Run the price checker and validate the output.
+`RawData` contains the information collected directly from the individual website scrapers.
 
-This structure allows the system to scale from a small number of websites to a larger collection of retailers and markets.
+It serves as the source data for the final price-checking report and preserves the retailer-level information collected during the scraping process.
+
+Typical information includes: Product name, Product model, Variant, Color, RAM, Storage, Price, Availability, Website, URL
+
+---
+
+### Results
+
+`Results` contains the final price-checking report.
+
+The report compares each retailer's collected price with the configured **RRP after promotion**.
+
+The final report is intended to identify whether a retailer:
+
+- Matches the promotional price
+- Offers a lower price
+- Offers a higher price
+- Has the product unavailable
+
+The `Results` sheet is the final output used for price monitoring and reporting.
+
+---
 
 ## Requirements
 
-The project is developed in Python and uses a virtual environment.
+The project uses Python and a virtual environment.
 
-Create and activate a virtual environment:
+Main dependencies include:
+
+- Python
+- Pandas
+- OpenPyXL
+- Playwright
+- Jupyter / IPython Kernel
+
+---
+
+## Installation
+
+### 1. Clone the Repository
 
 ```bash
+git clone https://github.com/GarlieLi/XM_Price_Checker.git
+cd XM_Price_Checker
+```
+
+---
+
+### 2. Create a Virtual Environment
+
+On Windows:
+
+```powershell
 python -m venv venv
 ```
 
-On Windows PowerShell:
+Activate the environment in PowerShell:
 
 ```powershell
 .\venv\Scripts\Activate.ps1
 ```
 
-Install the required Python packages:
+---
 
-## Running the Project
+### 3. Install Python Dependencies
 
-The main workflow can be executed through the Jupyter notebook:
+Install the main dependencies manually:
 
-```text
-Notebooks/XM_Price_Checker.ipynb
+```powershell
+python -m pip install pandas openpyxl playwright ipykernel
 ```
 
-Alternatively, the project includes:
+---
 
-```text
-run_price_check.py
+### 4. Install Playwright Browsers
+
+After installing Playwright, install the required browser:
+
+```powershell
+python -m playwright install chromium
 ```
 
-which is used to execute the price-checking workflow.
+This is required for scrapers that use Playwright browser automation.
 
-Before running the scraper, make sure that:
+---
 
-* The required Python environment is activated.
-* The Excel configuration is available.
-* The relevant websites are enabled.
-* Required browser dependencies are installed if browser automation is used.
+## Adding a New Website
 
-## Output
+To add support for another retailer:
 
-The system produces two main types of output:
+### 1. Create a scraper
 
-`RawData` contains the information directly collected from the individual website scrapers. 
+Create a new Python module inside `scrapers/`:
 
-This sheet preserves the collected website-level information and serves as the source data for the final report.
+```text
+scrapers/new_website.py
+```
 
-`Results` contains the final price-checking report.
+### 2. Implement the scraping logic
 
-The report compares each website's collected price information against the product's RRP after promotion.
+The scraper should handle the retailer-specific:
 
-The output is intended to provide a concise view of whether each retailer:
-Matches the promotional price
-Offers a lower price
-Offers a higher price
-Has the product unavailable
+- Product discovery
+- Product matching
+- Variant extraction
+- Price extraction
+- Availability extraction
 
-The Results sheet is the final report used for price monitoring and submission.
+### 3. Follow the existing output structure
+
+The scraper should return data in a structure compatible with the existing price-checking workflow.
+
+### 4. Add the website to the configuration
+
+Add the relevant website information and URLs to the Excel configuration.
+
+### 5. Add tests
+
+Create a corresponding test module under:
+
+```text
+test_new/
+```
+
+### 6. Enable the website
+
+Enable the retailer in the project configuration.
+
+### 7. Run and validate
+
+Run the scraper and check the resulting `RawData` and `Results` output.
+
+---
+
+## Testing
+
+The `test_new/` directory contains tests for individual scraper modules.
+
+The tests are organized by website so that changes to one scraper can be checked independently.
+
+Example:
+
+```text
+test_new/
+├── test_avans.py
+├── test_electro.py
+├── test_ktr.py
+├── test_max_electro.py
+├── test_neonet.py
+├── test_oleole.py
+└── test_xkom.py
+```
+
+Individual tests can be executed with:
+
+```powershell
+python test_new/test_xkom.py
+```
+
+---
+
+## Configuration
+
+The main configuration is maintained in:
+
+```text
+XM_Price_Checker_Python.xlsm
+```
+
+The workbook contains the product and website information used by the scraping workflow.
+
+Before running the project, make sure:
+
+- The required products are configured.
+- Product variants are correctly defined.
+- Website URLs are available.
+- The correct websites are enabled.
+- Promotional RRP values are up to date.
+
+---
+
+## Important Notes
+
+### Excel File
+
+The project relies on the Excel configuration workbook:
+
+```text
+XM_Price_Checker_Python.xlsm
+```
+
+The workbook should be available in the expected project location before running the price checker.
+
+### Website Changes
+
+E-commerce websites may change their:
+
+- HTML structure
+- CSS selectors
+- APIs
+- Product page structure
+- Availability indicators
+- Anti-bot mechanisms
+
+As a result, individual scrapers may require updates when a retailer changes its website.
+
+### Browser Automation
+
+Some retailers require browser automation and therefore depend on Playwright.
+
+If Playwright is installed but the browser executable has not been installed, run:
+
+```powershell
+python -m playwright install chromium
+```
+
+---
 
 ## Project Purpose
 
-The project was developed to automate the collection and monitoring of XM product prices across multiple e-commerce websites.
+The XM Price Checker was developed to automate the collection and monitoring of Xiaomi product prices across multiple e-commerce websites.
 
 Instead of manually visiting each retailer and recording prices, the system provides a repeatable workflow for:
 
-· Collecting structured product data
-· Monitoring product variants
-· Checking retailer prices
-· Tracking availability
-· Comparing prices against promotional RRP
-· Generating a standardized final report
+- Collecting structured product data
+- Monitoring product variants
+- Checking retailer prices
+- Tracking product availability
+- Comparing prices against promotional RRP
+- Generating a standardized final report
 
-The project is designed to reduce manual price-checking work while keeping the scraping, configuration, raw data, and final reporting processes structured and maintainable.
+The project is designed to reduce manual price-checking work while keeping the **scraping, configuration, raw data, and reporting processes structured and maintainable**.
+
+---
+
+## Future Improvements
+
+Potential future improvements include:
+
+- Adding more retailers and markets
+- Improving product matching
+- Adding more robust error handling
+- Improving scraper retry mechanisms
+- Adding automated scheduled price checks
+- Adding historical price tracking
+- Adding price trend analysis
+- Adding automated notifications for price changes
+- Improving test coverage
+- Adding a dashboard for monitoring results
+
+---
+
+## Author
+
+**Garlie Li**
