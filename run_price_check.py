@@ -19,7 +19,6 @@ from scrapers import msh
 from scrapers import max_electro
 from scrapers import avans
 from scrapers import neonet
-from scrapers import gg
 
 SCRAPERS = {
     "MEX": mex,
@@ -29,8 +28,7 @@ SCRAPERS = {
     "MSH": msh,
     "MAX ELECTRO": max_electro,
     "AVANS": avans,
-    "NEONET": neonet,
-    "GG": gg
+    "NEONET": neonet
 }
 
 

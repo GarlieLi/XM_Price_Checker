@@ -1,3 +1,5 @@
+# Not using for now, the availability detection is complicated and may not be reliable.
+
 import re
 
 
