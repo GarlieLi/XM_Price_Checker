@@ -214,8 +214,8 @@ def get_products(page, product):
     results = []
 
     # --------------------------------------------------------
-    # NEW:
-    # Track whether the target product was found
+    # Track whether the correct product + configuration
+    # was found
     # --------------------------------------------------------
 
     product_found = False
@@ -224,9 +224,57 @@ def get_products(page, product):
         "Waiting for NEONET products..."
     )
 
-    # --------------------------------------------------------
-    # Wait for product headings
-    # --------------------------------------------------------
+    # ========================================================
+    # TARGET RAM / STORAGE
+    # ========================================================
+
+    target_ram = re.sub(
+        r"\D",
+        "",
+        str(product["ram"])
+    )
+
+    target_storage = re.sub(
+        r"\D",
+        "",
+        str(product["storage"])
+    )
+
+    print(
+        "Target RAM:",
+        target_ram
+    )
+
+    print(
+        "Target Storage:",
+        target_storage
+    )
+
+    # ========================================================
+    # TARGET PRODUCT NAME
+    # ========================================================
+
+    target_name = (
+        str(product["name"])
+        .lower()
+        .replace("\u00a0", " ")
+        .strip()
+    )
+
+    target_name = re.sub(
+        r"\s+",
+        " ",
+        target_name
+    )
+
+    print(
+        "Target Product:",
+        target_name
+    )
+
+    # ========================================================
+    # WAIT FOR PRODUCT HEADINGS
+    # ========================================================
 
     try:
 
@@ -241,11 +289,6 @@ def get_products(page, product):
             "Could not find NEONET product headings."
         )
 
-        # ----------------------------------------------------
-        # NEW:
-        # No product headings = product not found
-        # ----------------------------------------------------
-
         results.append(
             {
                 "product_name": product["name"],
@@ -259,9 +302,9 @@ def get_products(page, product):
 
         return results
 
-    # --------------------------------------------------------
-    # Find H3 elements
-    # --------------------------------------------------------
+    # ========================================================
+    # FIND H3 ELEMENTS
+    # ========================================================
 
     headings = page.locator("h3")
 
@@ -300,9 +343,9 @@ def get_products(page, product):
             repr(title)
         )
 
-        # ----------------------------------------------------
-        # Product matching
-        # ----------------------------------------------------
+        # ====================================================
+        # PRODUCT NAME MATCHING
+        # ====================================================
 
         title_normalized = (
             title
@@ -311,25 +354,31 @@ def get_products(page, product):
             .strip()
         )
 
-        if "redmi" not in title_normalized:
+        title_normalized = re.sub(
+            r"\s+",
+            " ",
+            title_normalized
+        )
+
+        # ----------------------------------------------------
+        # The target product name must appear in the title
+        # ----------------------------------------------------
+
+        if target_name not in title_normalized:
+
+            print(
+                "Product name mismatch."
+            )
+
             continue
 
-        if "a7" not in title_normalized:
-            continue
+        print(
+            "Product name MATCH."
+        )
 
-        if "pro" not in title_normalized:
-            continue
-
-        # ----------------------------------------------------
-        # NEW:
-        # We found a matching target product
-        # ----------------------------------------------------
-
-        product_found = True
-
-        # ----------------------------------------------------
-        # Find product information container
-        # ----------------------------------------------------
+        # ====================================================
+        # FIND PRODUCT INFORMATION CONTAINER
+        # ====================================================
 
         container = None
 
@@ -347,14 +396,33 @@ def get_products(page, product):
                     .strip()
                 )
 
+                candidate_text_normalized = (
+                    text
+                    .lower()
+                    .replace("\u00a0", " ")
+                )
+
+                candidate_text_normalized = re.sub(
+                    r"\s+",
+                    " ",
+                    candidate_text_normalized
+                )
+
+                # ------------------------------------------------
+                # The container must contain:
+                #
+                # 1. target product name
+                # 2. product information / price / availability
+                # ------------------------------------------------
+
                 if (
-                    "Redmi A7 Pro" in text
+                    target_name in candidate_text_normalized
                     and (
-                        "Pamięć RAM" in text
-                        or "Pamięć wbudowana" in text
-                        or "Cena" in text
-                        or "Dodaj do koszyka" in text
-                        or "Ostatnie sztuki" in text
+                        "pamięć ram" in candidate_text_normalized
+                        or "pamięć wbudowana" in candidate_text_normalized
+                        or "cena" in candidate_text_normalized
+                        or "dodaj do koszyka" in candidate_text_normalized
+                        or "ostatnie sztuki" in candidate_text_normalized
                     )
                 ):
 
@@ -370,6 +438,10 @@ def get_products(page, product):
             except Exception:
 
                 continue
+
+        # ====================================================
+        # CONTAINER NOT FOUND
+        # ====================================================
 
         if container is None:
 
@@ -407,76 +479,99 @@ def get_products(page, product):
                 .strip()
             )
 
-        # ----------------------------------------------------
+        # ====================================================
         # DEBUG: FULL CARD TEXT
-        # ----------------------------------------------------
+        # ====================================================
 
         print()
         print(
             "NEONET FULL CARD TEXT:"
         )
+
         print(
             "-" * 60
         )
+
         print(
             card_text
         )
+
         print(
             "-" * 60
         )
 
         # ====================================================
-        # EXTRACT DATA
+        # EXTRACT RAM
         # ====================================================
 
         ram = get_ram(
             card_text
         )
 
+        # ====================================================
+        # EXTRACT STORAGE
+        # ====================================================
+
         storage = get_storage(
             card_text
         )
 
-        color = get_color(
-            title
-        )
-
-        price = clean_price(
-            card_text
-        )
-
-        availability = get_availability(
-            card_text
-        )
-
-        # ====================================================
-        # DEBUG OUTPUT
-        # ====================================================
-
-        print()
         print(
-            "=" * 60
-        )
-        print(
-            f"NEONET CARD {card_index}"
-        )
-        print(
-            "=" * 60
-        )
-
-        print(
-            "TITLE:",
-            title
-        )
-
-        print(
-            "RAM:",
+            "Detected RAM:",
             ram
         )
 
         print(
-            "STORAGE:",
+            "Detected Storage:",
             storage
+        )
+
+        # ====================================================
+        # MATCH TARGET RAM / STORAGE
+        # ====================================================
+
+        ram_number = re.sub(
+            r"\D",
+            "",
+            str(ram)
+        )
+
+        storage_number = re.sub(
+            r"\D",
+            "",
+            str(storage)
+        )
+
+        if (
+            ram_number != target_ram
+            or
+            storage_number != target_storage
+        ):
+
+            print(
+                "RAM / Storage mismatch:",
+                ram,
+                storage
+            )
+
+            continue
+
+        print(
+            "RAM / Storage MATCH."
+        )
+
+        # ----------------------------------------------------
+        # We found the correct product configuration
+        # ----------------------------------------------------
+
+        product_found = True
+
+        # ====================================================
+        # COLOR
+        # ====================================================
+
+        color = get_color(
+            title
         )
 
         print(
@@ -484,9 +579,12 @@ def get_products(page, product):
             color
         )
 
-        print(
-            "PRICE:",
-            price
+        # ====================================================
+        # AVAILABILITY
+        # ====================================================
+
+        availability = get_availability(
+            card_text
         )
 
         print(
@@ -495,32 +593,69 @@ def get_products(page, product):
         )
 
         # ====================================================
-        # SAVE RESULT
+        # PRICE
         # ====================================================
 
+        price = clean_price(
+            card_text
+        )
+
+        print(
+            "PRICE:",
+            price
+        )
+
+        # ====================================================
+        # RESULT
+        # ====================================================
+
+        result = {
+            "product_name": product["name"],
+            "variant": color,
+            "ram": ram,
+            "storage": storage,
+            "price": price,
+            "availability": availability
+        }
+
         results.append(
-            {
-                "product_name": product["name"],
-                "variant": color,
-                "ram": ram,
-                "storage": storage,
-                "price": price,
-                "availability": availability
-            }
+            result
         )
 
         card_index += 1
 
     # ========================================================
-    # NEW:
-    # If no matching product was found at all
+    # PRODUCT NOT FOUND
     # ========================================================
 
     if not product_found:
 
         print()
         print(
-            "NEONET: Target product not found."
+            "=" * 60
+        )
+
+        print(
+            "NEONET: Target product/configuration not found."
+        )
+
+        print(
+            "Product:",
+            product["name"]
+        )
+
+        print(
+            "RAM:",
+            product["ram"]
+        )
+
+        print(
+            "Storage:",
+            product["storage"]
+        )
+
+        print(
+            "=" * 60
         )
 
         results.append(
@@ -542,10 +677,12 @@ def get_products(page, product):
     print(
         "=" * 60
     )
+
     print(
         "NEONET RESULTS:",
         len(results)
     )
+
     print(
         "=" * 60
     )
@@ -557,3 +694,23 @@ def get_products(page, product):
         )
 
     return results
+
+
+# ============================================================
+# COMPATIBILITY FUNCTIONS
+# ============================================================
+
+def get_price_results(page, product):
+
+    return get_products(
+        page,
+        product
+    )
+
+
+def get_price(page, product):
+
+    return get_products(
+        page,
+        product
+    )

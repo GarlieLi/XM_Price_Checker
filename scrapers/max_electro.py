@@ -31,16 +31,63 @@ def get_color(title):
 
     title_lower = title.lower()
 
-    if "czarny" in title_lower:
+    # --------------------------------------------------------
+    # English
+    # --------------------------------------------------------
+
+    if "black" in title_lower:
         return "Black"
 
-    elif "zielony" in title_lower:
+    elif "green" in title_lower:
         return "Green"
 
-    elif "niebieski" in title_lower:
+    elif "blue" in title_lower:
         return "Blue"
 
-    elif "biały" in title_lower:
+    elif "white" in title_lower:
+        return "White"
+
+    elif "grey" in title_lower:
+        return "Grey"
+
+    elif "gray" in title_lower:
+        return "Gray"
+
+    elif "silver" in title_lower:
+        return "Silver"
+
+    elif "gold" in title_lower:
+        return "Gold"
+
+    elif "purple" in title_lower:
+        return "Purple"
+
+    elif "pink" in title_lower:
+        return "Pink"
+
+    elif "red" in title_lower:
+        return "Red"
+
+    elif "titanium" in title_lower:
+        return "Titanium"
+
+    elif "glacier blue" in title_lower:
+        return "Glacier Blue"
+
+    # --------------------------------------------------------
+    # Polish
+    # --------------------------------------------------------
+
+    elif "czarn" in title_lower:
+        return "Black"
+
+    elif "zielon" in title_lower:
+        return "Green"
+
+    elif "niebiesk" in title_lower:
+        return "Blue"
+
+    elif "biały" in title_lower or "bialy" in title_lower:
         return "White"
 
     elif "szary" in title_lower:
@@ -49,13 +96,13 @@ def get_color(title):
     elif "srebrny" in title_lower:
         return "Silver"
 
-    elif "złoty" in title_lower:
+    elif "złoty" in title_lower or "zloty" in title_lower:
         return "Gold"
 
     elif "fioletowy" in title_lower:
         return "Purple"
 
-    elif "różowy" in title_lower:
+    elif "różowy" in title_lower or "rozowy" in title_lower:
         return "Pink"
 
     elif "czerwony" in title_lower:
@@ -140,7 +187,9 @@ def get_products(page, product):
                 .strip()
             )
 
+            # ------------------------------------------------
             # Only target product
+            # ------------------------------------------------
 
             if product["name"].lower() not in title.lower():
                 continue
@@ -193,12 +242,12 @@ def get_products(page, product):
             # ------------------------------------------------
             #
             # Current Max Elektro card does not show storage
-            # in the visible text for this product.
+            # in visible text, so first try the title.
             #
-            # Therefore first try the title.
+            # Examples:
             #
-            # Example:
             # Redmi A7 Pro 4/64GB
+            # Redmi Note 15 6/128GB
             #
             # ------------------------------------------------
 
@@ -232,6 +281,12 @@ def get_products(page, product):
                 re.sub(r"\D", "", storage)
                 != target_storage
             ):
+
+                print(
+                    "RAM / STORAGE mismatch:",
+                    ram,
+                    storage
+                )
 
                 continue
 
@@ -272,22 +327,30 @@ def get_products(page, product):
                 card_text.lower()
             )
 
+            # Explicitly unavailable
             if (
-                "produkt dostępny w magazynie"
-                in card_text_lower
-            ):
-
-                availability = "Available"
-
-            elif (
                 "produkt niedostępny"
                 in card_text_lower
                 or
                 "brak w magazynie"
                 in card_text_lower
+                or
+                "niedostępny"
+                in card_text_lower
             ):
 
                 availability = "Unavailable"
+
+            # Explicitly available
+            elif (
+                "dostępny"
+                in card_text_lower
+                or
+                "dostepny"
+                in card_text_lower
+            ):
+
+                availability = "Available"
 
             else:
 
@@ -304,14 +367,13 @@ def get_products(page, product):
 
             # We want the current selling price.
             #
-            # The card contains several prices:
+            # The card may contain several prices:
             #
-            # 399.00 zł  <- current price
-            # 399.00 zł  <- lowest price
-            # 549.00 zł  <- regular price
+            # current price
+            # lowest price
+            # regular price
             #
-            # Therefore take the price element associated
-            # with the current product price.
+            # For now, take the first visible price candidate.
 
             price = None
 
@@ -321,7 +383,6 @@ def get_products(page, product):
 
             if price_candidates.count() > 0:
 
-                # First visible price is the current price
                 price_text = (
                     price_candidates
                     .first
@@ -394,11 +455,6 @@ def get_products(page, product):
 
     # ========================================================
     # NO MATCHING PRODUCT
-    # ========================================================
-    #
-    # The search page did not contain the target product.
-    # Treat this as unavailable instead of returning [].
-    #
     # ========================================================
 
     if not product_found:
