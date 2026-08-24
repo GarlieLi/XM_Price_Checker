@@ -7,16 +7,26 @@ def clean_price(text):
         return None
 
     match = re.search(
-        r"(\d+[,.]\d+|\d+)",
+        r"\d{1,3}(?:[\s\u202f]\d{3})*(?:,\d{1,2})?",
         text
     )
 
     if not match:
         return None
 
-    return float(
-        match.group(1).replace(",", ".")
+    price_text = match.group(0)
+
+    # Remove normal spaces and narrow no-break spaces
+    price_text = (
+        price_text
+        .replace(" ", "")
+        .replace("\u202f", "")
     )
+
+    # Polish decimal comma -> dot
+    price_text = price_text.replace(",", ".")
+
+    return float(price_text)
 
 
 def get_products(page, product):
