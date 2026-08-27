@@ -17,13 +17,11 @@ def clean_price(text):
         return None
 
     # --------------------------------------------------------
-    # Normal Polish format
-    # 449,00 zł
-    # 449.00 zł
+    # 1. Normal price with PLN or zł
     # --------------------------------------------------------
 
     match = re.search(
-        r"(\d[\d\s]*[,.]\d{2})\s*zł",
+        r"(\d[\d\s]*[,.]\d{2})\s*(?:PLN|zł)",
         text,
         re.IGNORECASE
     )
@@ -42,16 +40,13 @@ def clean_price(text):
         except ValueError:
             pass
 
+
     # --------------------------------------------------------
-    # Split format
-    #
-    # 449
-    # 00
-    # zł
+    # 2. Split price format
     # --------------------------------------------------------
 
     match = re.search(
-        r"(\d[\d\s]*)\s+(\d{2})\s*zł",
+        r"(\d[\d\s]*)\s+(\d{2})\s+(?:PLN|zł)",
         text,
         re.IGNORECASE
     )
@@ -70,6 +65,7 @@ def clean_price(text):
 
         except ValueError:
             pass
+
 
     return None
 

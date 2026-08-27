@@ -7,7 +7,7 @@ def run_scraper(url, scraper, product):
     with sync_playwright() as p:
 
         browser = p.chromium.launch(
-            headless=False
+            headless= False,
         )
 
         page = browser.new_page()
