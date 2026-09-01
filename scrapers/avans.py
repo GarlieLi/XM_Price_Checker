@@ -92,42 +92,225 @@ def get_color(title):
 
     title_lower = title.lower()
 
-    if "czarny" in title_lower:
-        return "Black"
-
-    elif "zielony" in title_lower:
-        return "Green"
-
-    elif "niebieski" in title_lower:
+    # --------------------------------------------------------
+    # Blue
+    # --------------------------------------------------------
+    if (
+        "niebieski" in title_lower
+        or "blue" in title_lower
+    ):
         return "Blue"
 
-    elif "biały" in title_lower:
+    # --------------------------------------------------------
+    # Black
+    # --------------------------------------------------------
+    elif (
+        "czarny" in title_lower
+        or "black" in title_lower
+    ):
+        return "Black"
+
+    # --------------------------------------------------------
+    # Green
+    # --------------------------------------------------------
+    elif (
+        "zielony" in title_lower
+        or "green" in title_lower
+    ):
+        return "Green"
+
+    # --------------------------------------------------------
+    # White
+    # --------------------------------------------------------
+    elif (
+        "biały" in title_lower
+        or "white" in title_lower
+    ):
         return "White"
 
-    elif "szary" in title_lower:
+    # --------------------------------------------------------
+    # Grey
+    # --------------------------------------------------------
+    elif (
+        "szary" in title_lower
+        or "grey" in title_lower
+        or "gray" in title_lower
+    ):
         return "Grey"
 
-    elif "srebrny" in title_lower:
+    # --------------------------------------------------------
+    # Silver
+    # --------------------------------------------------------
+    elif (
+        "srebrny" in title_lower
+        or "silver" in title_lower
+    ):
         return "Silver"
 
-    elif "złoty" in title_lower:
+    # --------------------------------------------------------
+    # Gold
+    # --------------------------------------------------------
+    elif (
+        "złoty" in title_lower
+        or "gold" in title_lower
+    ):
         return "Gold"
 
-    elif "fioletowy" in title_lower:
+    # --------------------------------------------------------
+    # Purple
+    # --------------------------------------------------------
+    elif (
+        "fioletowy" in title_lower
+        or "purple" in title_lower
+    ):
         return "Purple"
 
-    elif "różowy" in title_lower:
+    # --------------------------------------------------------
+    # Pink
+    # --------------------------------------------------------
+    elif (
+        "różowy" in title_lower
+        or "pink" in title_lower
+    ):
         return "Pink"
 
-    elif "czerwony" in title_lower:
-        return "Red"
-
-    elif "tytanowy" in title_lower:
+    # --------------------------------------------------------
+    # Titanium
+    # --------------------------------------------------------
+    elif (
+        "tytanowy" in title_lower
+        or "titanium" in title_lower
+    ):
         return "Titanium"
 
+    # --------------------------------------------------------
+    # Brown
+    # --------------------------------------------------------
+    elif (
+        "brązowy" in title_lower
+        or "brown" in title_lower
+        or "mocha" in title_lower
+    ):
+        return "Brown"
+
+    # --------------------------------------------------------
+    # Unknown
+    # --------------------------------------------------------
     else:
         return "Unknown"
 
+# ============================================================
+# PRODUCT MATCHING
+# ============================================================
+
+def match_product(title, target_name):
+    """
+    Strict product matching.
+
+    Important distinctions:
+    - Redmi Note 15 != Redmi Note 15 Pro
+    - Redmi Note 15 Pro != Redmi Note 15 Pro+
+    - Redmi Note 15 != Redmi Note 15 5G
+    """
+
+    import re
+
+    if not title or not target_name:
+        return False
+
+    # --------------------------------------------------
+    # NORMALIZE TEXT
+    # --------------------------------------------------
+    def normalize(text):
+        text = text.lower()
+
+        # Normalize different plus symbols
+        text = text.replace("＋", "+")
+        text = text.replace(" pro +", " pro+")
+
+        # Remove common brand words
+        text = re.sub(r"\bsmartfon\b", " ", text)
+        text = re.sub(r"\bxiaomi\b", " ", text)
+
+        # Normalize punctuation
+        text = re.sub(r"[\"“”]", " ", text)
+
+        # Keep + because Pro+ is important
+        text = re.sub(r"[^a-z0-9+]+", " ", text)
+
+        # Normalize spaces
+        text = re.sub(r"\s+", " ", text).strip()
+
+        return text
+
+    title_norm = normalize(title)
+    target_norm = normalize(target_name)
+
+    # --------------------------------------------------
+    # SPECIAL STRICT MATCHING FOR REDMI NOTE SERIES
+    # --------------------------------------------------
+    if "redmi note" in target_norm:
+
+        # Extract model number from target
+        target_model_match = re.search(
+            r"\bredmi note (\d+)\b",
+            target_norm
+        )
+
+        title_model_match = re.search(
+            r"\bredmi note (\d+)\b",
+            title_norm
+        )
+
+        if not target_model_match or not title_model_match:
+            return False
+
+        target_model = target_model_match.group(1)
+        title_model = title_model_match.group(1)
+
+        # Different generation -> reject
+        if target_model != title_model:
+            return False
+
+        # --------------------------------------------------
+        # DETECT VARIANT: BASE / PRO / PRO+
+        # --------------------------------------------------
+        def get_variant(text):
+            if re.search(r"\bpro\+\b|\bpro\+", text):
+                return "pro+"
+
+            if re.search(r"\bpro\b", text):
+                return "pro"
+
+            return "base"
+
+        target_variant = get_variant(target_norm)
+        title_variant = get_variant(title_norm)
+
+        # Must be exactly the same variant
+        if target_variant != title_variant:
+            return False
+
+        # --------------------------------------------------
+        # DETECT 5G
+        # --------------------------------------------------
+        target_has_5g = bool(re.search(r"\b5g\b", target_norm))
+        title_has_5g = bool(re.search(r"\b5g\b", title_norm))
+
+        # Target and result must agree on 5G
+        if target_has_5g != title_has_5g:
+            return False
+
+        return True
+
+    # --------------------------------------------------
+    # FALLBACK FOR OTHER PRODUCTS
+    # --------------------------------------------------
+
+    # Exact normalized product phrase
+    pattern = r"(?<!\w)" + re.escape(target_norm) + r"(?!\w)"
+
+    return bool(re.search(pattern, title_norm))
 
 # ============================================================
 # RAM / STORAGE
@@ -283,12 +466,20 @@ def get_products(page, product):
         # Match target product
         # ----------------------------------------------------
 
-        if (
-            product["name"].lower()
-            not in title.lower()
+        if not match_product(
+            title,
+            product["name"]
         ):
 
+            print(
+                "Product name mismatch."
+            )
+
             continue
+
+        print(
+            "PRODUCT NAME MATCH: YES"
+        )
 
         # ----------------------------------------------------
         # Only target actual smartphone
