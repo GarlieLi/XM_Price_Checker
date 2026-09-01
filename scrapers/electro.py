@@ -12,14 +12,16 @@ def clean_price(text):
 
     text = str(text).strip()
 
-    # Remove PLN / zł if present
+    # Remove currency labels
     text = text.replace("zł", "")
     text = text.replace("PLN", "")
+
+    # Remove spaces
     text = text.replace(" ", "")
 
-    # Find numeric price
+    # Find price
     match = re.search(
-        r"(\d+[,.]?\d*)",
+        r"(\d+(?:[,.]\d+)?)",
         text
     )
 
@@ -40,50 +42,263 @@ def get_color(title):
     title_lower = title.lower()
 
     color_map = {
+
+        # ----------------------------------------------------
+        # BLACK
+        # ----------------------------------------------------
+
         "czarny": "Black",
         "czarna": "Black",
         "czarne": "Black",
+        "black": "Black",
+        "midnight black": "Black",
 
-        "tytanowy": "Titanium",
-        "tytanowa": "Titanium",
-
-        "fioletowy": "Purple",
-        "fioletowa": "Purple",
+        # ----------------------------------------------------
+        # BLUE
+        # ----------------------------------------------------
 
         "niebieski": "Blue",
         "niebieska": "Blue",
+        "blue": "Blue",
+        "glacier blue": "Blue",
+        "ocean blue": "Blue",
+
+        # ----------------------------------------------------
+        # TITANIUM
+        # ----------------------------------------------------
+
+        "tytanowy": "Titanium",
+        "tytanowa": "Titanium",
+        "titanium": "Titanium",
+
+        # ----------------------------------------------------
+        # PURPLE
+        # ----------------------------------------------------
+
+        "fioletowy": "Purple",
+        "fioletowa": "Purple",
+        "purple": "Purple",
+        "aurora purple": "Purple",
+        "lawendowy": "Purple",
+        "lawendowa": "Purple",
+        "lavender": "Purple",
+
+        # ----------------------------------------------------
+        # GREEN
+        # ----------------------------------------------------
 
         "zielony": "Green",
         "zielona": "Green",
+        "green": "Green",
+        "forest green": "Green",
+
+        # ----------------------------------------------------
+        # WHITE
+        # ----------------------------------------------------
 
         "biały": "White",
         "biała": "White",
+        "white": "White",
+
+        # ----------------------------------------------------
+        # GREY
+        # ----------------------------------------------------
 
         "szary": "Grey",
         "szara": "Grey",
+        "grey": "Grey",
+        "gray": "Grey",
+
+        # ----------------------------------------------------
+        # SILVER
+        # ----------------------------------------------------
 
         "srebrny": "Silver",
         "srebrna": "Silver",
+        "silver": "Silver",
+
+        # ----------------------------------------------------
+        # GOLD
+        # ----------------------------------------------------
 
         "złoty": "Gold",
         "złota": "Gold",
+        "gold": "Gold",
+
+        # ----------------------------------------------------
+        # PINK
+        # ----------------------------------------------------
 
         "różowy": "Pink",
         "różowa": "Pink",
+        "pink": "Pink",
 
-        "czerwony": "Red",
-        "czerwona": "Red",
+        # ----------------------------------------------------
+        # BROWN
+        # ----------------------------------------------------
+
+        "brązowy": "Brown",
+        "brązowa": "Brown",
+        "brown": "Brown",
+        "mocha brown": "Brown",
+
     }
 
-    for polish_color, english_color in color_map.items():
+    # Check longer/descriptive names first
+    for color_name in sorted(
+        color_map.keys(),
+        key=len,
+        reverse=True
+    ):
 
         if re.search(
-            rf"\b{re.escape(polish_color)}\b",
+            rf"\b{re.escape(color_name)}\b",
             title_lower
         ):
-            return english_color
+
+            return color_map[color_name]
 
     return "Unknown"
+
+# ============================================================
+# PRODUCT MATCHING
+# ============================================================
+
+def normalize_product_name(text):
+
+    text = str(text).lower()
+
+    # Normalize Pro+
+    text = re.sub(
+        r"pro\s*\+",
+        "pro+",
+        text
+    )
+
+    # Remove unnecessary punctuation
+    text = re.sub(
+        r"[^a-z0-9+]+",
+        " ",
+        text
+    )
+
+    # Remove extra spaces
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    ).strip()
+
+    return text
+
+
+def get_redmi_note_signature(text):
+
+    text = normalize_product_name(text)
+
+    # Find Redmi Note number
+    match = re.search(
+        r"\bredmi note (\d+)\b",
+        text
+    )
+
+    if not match:
+        return None
+
+    model_number = match.group(1)
+
+    # Check Pro / Pro+
+    after_note = text[match.end():].strip()
+
+    if re.match(
+        r"^pro\+",
+        after_note
+    ):
+        version = "pro+"
+
+    elif re.match(
+        r"^pro\b",
+        after_note
+    ):
+        version = "pro"
+
+    else:
+        version = "standard"
+
+    # Check 5G
+    has_5g = bool(
+        re.search(
+            r"\b5g\b",
+            text
+        )
+    )
+
+    return (
+        model_number,
+        version,
+        has_5g
+    )
+
+
+def product_name_matches(target_name, title):
+
+    target_normalized = normalize_product_name(
+        target_name
+    )
+
+    title_normalized = normalize_product_name(
+        title
+    )
+
+    # --------------------------------------------------------
+    # STRICT MATCHING FOR REDMI NOTE PRODUCTS
+    # --------------------------------------------------------
+
+    if (
+        "redmi note" in target_normalized
+        and
+        "redmi note" in title_normalized
+    ):
+
+        target_signature = get_redmi_note_signature(
+            target_name
+        )
+
+        title_signature = get_redmi_note_signature(
+            title
+        )
+
+        if (
+            target_signature is not None
+            and
+            title_signature is not None
+        ):
+
+            return (
+                target_signature
+                ==
+                title_signature
+            )
+
+    # --------------------------------------------------------
+    # OTHER PRODUCTS
+    # --------------------------------------------------------
+
+    # Exact normalized phrase match
+    pattern = (
+        r"(?:^|\s)"
+        +
+        re.escape(target_normalized)
+        +
+        r"(?:$|\s)"
+    )
+
+    return bool(
+        re.search(
+            pattern,
+            title_normalized
+        )
+    )
 
 
 # ============================================================
@@ -143,10 +358,15 @@ def get_products(page, product):
         # Match product name
         # ----------------------------------------------------
 
-        if product["name"].lower() not in title.lower():
+        if not product_name_matches(
+            product["name"],
+            title
+        ):
+
             continue
 
         print()
+
         print("=" * 60)
         print("ELECTRO PRODUCT", i)
         print("=" * 60)
@@ -154,6 +374,10 @@ def get_products(page, product):
         print(
             "TITLE:",
             title
+        )
+
+        print(
+            "PRODUCT NAME MATCH: YES"
         )
 
         # ----------------------------------------------------
@@ -259,6 +483,10 @@ def get_products(page, product):
             storage
         )
 
+        print(
+            "RAM / STORAGE MATCH: YES"
+        )
+
         # ----------------------------------------------------
         # COLOR
         # ----------------------------------------------------
@@ -274,11 +502,11 @@ def get_products(page, product):
 
         # ----------------------------------------------------
         # AVAILABILITY
+        # ----------------------------------------------------
         #
-        # Electro has a dedicated:
+        # Electro has a dedicated
         # .product-show-offer-unavailable
-        #
-        # element when the product is unavailable.
+        # element when unavailable.
         # ----------------------------------------------------
 
         unavailable_element = card.locator(
@@ -331,7 +559,7 @@ def get_products(page, product):
         # SAVE RESULT
         # ----------------------------------------------------
 
-        results.append({
+        result = {
 
             "product_name":
                 product["name"],
@@ -350,7 +578,17 @@ def get_products(page, product):
 
             "availability":
                 availability,
-        })
+
+        }
+
+        results.append(
+            result
+        )
+
+        print(
+            "RESULT:",
+            result
+        )
 
     # ========================================================
     # PRODUCT NOT FOUND
@@ -359,17 +597,31 @@ def get_products(page, product):
     if not results:
 
         print()
+
         print(
             "Electro: Target product not found."
         )
 
         results.append({
-            "product_name": product["name"],
-            "variant": "Unknown",
-            "ram": str(product["ram"]) + " GB",
-            "storage": str(product["storage"]) + " GB",
-            "price": None,
-            "availability": "Unavailable",
+
+            "product_name":
+                product["name"],
+
+            "variant":
+                "Unknown",
+
+            "ram":
+                str(product["ram"]) + " GB",
+
+            "storage":
+                str(product["storage"]) + " GB",
+
+            "price":
+                None,
+
+            "availability":
+                "Unavailable",
+
         })
 
     return results
