@@ -16,20 +16,34 @@ def clean_price(text):
     if not text:
         return None
 
+    text = (
+        str(text)
+        .replace("\u00a0", " ")
+        .strip()
+    )
+
     # --------------------------------------------------------
-    # 1. Normal price with PLN or zł
+    # Normal price
+    #
+    # Examples:
+    #
+    # 1 899.00 PLN
+    # 1899,99 zł
+    # 1899.00 zł
     # --------------------------------------------------------
 
-    match = re.search(
+    matches = re.findall(
         r"(\d[\d\s]*[,.]\d{2})\s*(?:PLN|zł)",
         text,
         re.IGNORECASE
     )
 
-    if match:
+    if matches:
 
+        # Usually the first real price with currency is the
+        # current product price.
         value = (
-            match.group(1)
+            matches[0]
             .replace(" ", "")
             .replace(",", ".")
         )
@@ -40,13 +54,18 @@ def clean_price(text):
         except ValueError:
             pass
 
-
     # --------------------------------------------------------
-    # 2. Split price format
+    # Split price
+    #
+    # Example:
+    #
+    # 1 899
+    # 00
+    # PLN
     # --------------------------------------------------------
 
     match = re.search(
-        r"(\d[\d\s]*)\s+(\d{2})\s+(?:PLN|zł)",
+        r"(\d[\d\s]*)\s+(\d{2})\s*(?:PLN|zł)",
         text,
         re.IGNORECASE
     )
@@ -66,6 +85,33 @@ def clean_price(text):
         except ValueError:
             pass
 
+    # --------------------------------------------------------
+    # Integer price with currency
+    #
+    # Example:
+    #
+    # 1899 PLN
+    # 899 zł
+    # --------------------------------------------------------
+
+    match = re.search(
+        r"(\d[\d\s]*)\s*(?:PLN|zł)",
+        text,
+        re.IGNORECASE
+    )
+
+    if match:
+
+        value = (
+            match.group(1)
+            .replace(" ", "")
+        )
+
+        try:
+            return float(value)
+
+        except ValueError:
+            pass
 
     return None
 
@@ -76,19 +122,84 @@ def clean_price(text):
 
 def get_color(title):
 
-    title_lower = title.lower()
+    title_lower = (
+        str(title)
+        .lower()
+        .replace("\u00a0", " ")
+    )
 
-    # English names used by NEONET
-    if "black" in title_lower:
-        return "Black"
+    # --------------------------------------------------------
+    # Marketing colors first
+    # --------------------------------------------------------
 
-    elif "green" in title_lower:
-        return "Green"
-
-    elif "blue" in title_lower:
+    if "glacier blue" in title_lower:
         return "Blue"
 
-    # Polish names
+    elif "ocean blue" in title_lower:
+        return "Blue"
+
+    elif "sky blue" in title_lower:
+        return "Blue"
+
+    elif "midnight black" in title_lower:
+        return "Black"
+
+    elif "mocha brown" in title_lower:
+        return "Brown"
+
+    elif "forest green" in title_lower:
+        return "Green"
+
+    elif "aurora purple" in title_lower:
+        return "Purple"
+
+    elif "ocean teal" in title_lower:
+        return "Green"
+
+    # --------------------------------------------------------
+    # English colors
+    # --------------------------------------------------------
+
+    elif re.search(r"\bblack\b", title_lower):
+        return "Black"
+
+    elif re.search(r"\bgreen\b", title_lower):
+        return "Green"
+
+    elif re.search(r"\bblue\b", title_lower):
+        return "Blue"
+
+    elif re.search(r"\bwhite\b", title_lower):
+        return "White"
+
+    elif re.search(r"\bgrey\b", title_lower):
+        return "Grey"
+
+    elif re.search(r"\bgray\b", title_lower):
+        return "Grey"
+
+    elif re.search(r"\bsilver\b", title_lower):
+        return "Silver"
+
+    elif re.search(r"\bgold\b", title_lower):
+        return "Gold"
+
+    elif re.search(r"\bpurple\b", title_lower):
+        return "Purple"
+
+    elif re.search(r"\bpink\b", title_lower):
+        return "Pink"
+
+    elif re.search(r"\bbrown\b", title_lower):
+        return "Brown"
+
+    elif re.search(r"\btitanium\b", title_lower):
+        return "Titanium"
+
+    # --------------------------------------------------------
+    # Polish colors
+    # --------------------------------------------------------
+
     elif "czarn" in title_lower:
         return "Black"
 
@@ -98,28 +209,28 @@ def get_color(title):
     elif "niebiesk" in title_lower:
         return "Blue"
 
-    elif "biały" in title_lower:
+    elif "biały" in title_lower or "bialy" in title_lower:
         return "White"
 
-    elif "szary" in title_lower:
+    elif "szar" in title_lower:
         return "Grey"
 
-    elif "srebrny" in title_lower:
+    elif "srebr" in title_lower:
         return "Silver"
 
-    elif "złoty" in title_lower:
+    elif "złot" in title_lower or "zlot" in title_lower:
         return "Gold"
 
-    elif "fioletowy" in title_lower:
+    elif "fiolet" in title_lower:
         return "Purple"
 
-    elif "różowy" in title_lower:
+    elif "róż" in title_lower or "roz" in title_lower:
         return "Pink"
 
-    elif "czerwony" in title_lower:
-        return "Red"
+    elif "brąz" in title_lower or "braz" in title_lower:
+        return "Brown"
 
-    elif "tytanowy" in title_lower:
+    elif "tytan" in title_lower:
         return "Titanium"
 
     else:
@@ -127,36 +238,255 @@ def get_color(title):
 
 
 # ============================================================
-# RAM
+# PRODUCT MATCHING
 # ============================================================
+
+def normalize_product_text(text):
+
+    text = (
+        str(text)
+        .lower()
+        .replace("\u00a0", " ")
+        .strip()
+    )
+
+    # --------------------------------------------------------
+    # Normalize Pro+
+    # --------------------------------------------------------
+
+    text = re.sub(
+        r"\bpro\s*\+",
+        "pro+",
+        text
+    )
+
+    # --------------------------------------------------------
+    # Remove common punctuation
+    # --------------------------------------------------------
+
+    text = re.sub(
+        r"[/(),;:_\-]+",
+        " ",
+        text
+    )
+
+    # --------------------------------------------------------
+    # Keep letters, numbers, spaces and +
+    # --------------------------------------------------------
+
+    text = re.sub(
+        r"[^a-z0-9ąćęłńóśźż+\s]",
+        " ",
+        text
+    )
+
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    ).strip()
+
+    return text
+
+
+def matches_product(title, product):
+
+    title_normalized = normalize_product_text(
+        title
+    )
+
+    target_normalized = normalize_product_text(
+        product["name"]
+    )
+
+    print(
+        "NORMALIZED TITLE:",
+        title_normalized
+    )
+
+    print(
+        "NORMALIZED TARGET:",
+        target_normalized
+    )
+
+    # --------------------------------------------------------
+    # 5G matching
+    # --------------------------------------------------------
+
+    target_has_5g = bool(
+        re.search(
+            r"\b5g\b",
+            target_normalized
+        )
+    )
+
+    title_has_5g = bool(
+        re.search(
+            r"\b5g\b",
+            title_normalized
+        )
+    )
+
+    if target_has_5g != title_has_5g:
+
+        print(
+            "Product mismatch: 5G version does not match."
+        )
+
+        return False
+
+    # --------------------------------------------------------
+    # Remove 5G for product-name comparison
+    # --------------------------------------------------------
+
+    target_core = re.sub(
+        r"\b5g\b",
+        "",
+        target_normalized
+    )
+
+    title_core = re.sub(
+        r"\b5g\b",
+        "",
+        title_normalized
+    )
+
+    target_core = re.sub(
+        r"\s+",
+        " ",
+        target_core
+    ).strip()
+
+    title_core = re.sub(
+        r"\s+",
+        " ",
+        title_core
+    ).strip()
+
+    target_tokens = target_core.split()
+    title_tokens = title_core.split()
+
+    # --------------------------------------------------------
+    # Find exact product token sequence
+    # --------------------------------------------------------
+
+    for start in range(
+        len(title_tokens) - len(target_tokens) + 1
+    ):
+
+        end = start + len(target_tokens)
+
+        if (
+            title_tokens[start:end]
+            != target_tokens
+        ):
+            continue
+
+        # ----------------------------------------------------
+        # Prevent base model matching Pro / Pro+ / Ultra etc.
+        #
+        # Example:
+        #
+        # Redmi Note 15
+        #
+        # must NOT match:
+        #
+        # Redmi Note 15 Pro
+        # Redmi Note 15 Pro+
+        # ----------------------------------------------------
+
+        if end < len(title_tokens):
+
+            next_token = title_tokens[end]
+
+            product_modifiers = {
+                "pro",
+                "pro+",
+                "ultra",
+                "max",
+                "lite",
+                "plus",
+            }
+
+            if next_token in product_modifiers:
+
+                print(
+                    "Product mismatch: additional "
+                    f"model version '{next_token}'."
+                )
+
+                continue
+
+        print(
+            "Product name MATCH."
+        )
+
+        return True
+
+    print(
+        "Product name mismatch."
+    )
+
+    return False
+
+
+# ============================================================
+# RAM / STORAGE
+# ============================================================
+
+def get_configuration_from_title(title):
+
+    title = str(title)
+
+    # --------------------------------------------------------
+    # Examples:
+    #
+    # 8/256 GB
+    # 8/256GB
+    # 4 / 128 GB
+    # --------------------------------------------------------
+
+    match = re.search(
+        r"(\d+)\s*/\s*(\d+)\s*GB",
+        title,
+        re.IGNORECASE
+    )
+
+    if match:
+
+        return (
+            match.group(1) + " GB",
+            match.group(2) + " GB"
+        )
+
+    return None, None
+
 
 def get_ram(text):
 
     match = re.search(
-        r"Pamięć RAM:\s*(\d+)\s*GB",
+        r"Pamięć\s+RAM:\s*(\d+)\s*GB",
         text,
         re.IGNORECASE
     )
 
     if match:
+
         return match.group(1) + " GB"
 
     return "Unknown"
 
 
-# ============================================================
-# STORAGE
-# ============================================================
-
 def get_storage(text):
 
     match = re.search(
-        r"Pamięć wbudowana:\s*(\d+)\s*GB",
+        r"Pamięć\s+wbudowana:\s*(\d+)\s*GB",
         text,
         re.IGNORECASE
     )
 
     if match:
+
         return match.group(1) + " GB"
 
     return "Unknown"
@@ -171,34 +501,148 @@ def get_availability(text):
     if not text:
         return "Unknown"
 
-    text_lower = text.lower()
+    text_lower = (
+        str(text)
+        .lower()
+        .replace("\u00a0", " ")
+    )
+
+    # --------------------------------------------------------
+    # Explicitly unavailable FIRST
+    # --------------------------------------------------------
+
+    unavailable_phrases = [
+
+        "chwilowo niedostępny",
+        "chwilowo niedostępna",
+        "produkt niedostępny",
+        "produkt niedostępna",
+        "niedostępny",
+        "niedostępna",
+        "brak w magazynie",
+        "out of stock",
+        "unavailable",
+
+    ]
+
+    for phrase in unavailable_phrases:
+
+        if phrase in text_lower:
+
+            return "Unavailable"
 
     # --------------------------------------------------------
     # Explicitly available
     # --------------------------------------------------------
 
-    if "dodaj do koszyka" in text_lower:
-        return "Available"
+    available_phrases = [
 
-    if "ostatnie sztuki" in text_lower:
-        return "Available"
+        "dodaj do koszyka",
+        "add to cart",
+        "do koszyka",
+        "ostatnie sztuki",
+        "available",
+        "dostępny",
+        "dostępna",
+        "wysyłka",
+        "free shipping",
 
-    # --------------------------------------------------------
-    # Explicitly unavailable
-    # --------------------------------------------------------
+    ]
 
-    if (
-        "chwilowo niedostępny" in text_lower
-        or "niedostępny" in text_lower
-        or "brak w magazynie" in text_lower
-    ):
-        return "Unavailable"
+    for phrase in available_phrases:
 
-    # --------------------------------------------------------
-    # Don't guess
-    # --------------------------------------------------------
+        if phrase in text_lower:
+
+            return "Available"
 
     return "Unknown"
+
+
+# ============================================================
+# FIND PRODUCT CARD
+# ============================================================
+
+def find_product_card(heading):
+
+    # --------------------------------------------------------
+    # Move upwards from the H3.
+    #
+    # We want the smallest ancestor that looks like one
+    # product card, rather than a large container containing
+    # several products.
+    # --------------------------------------------------------
+
+    for level in range(1, 10):
+
+        try:
+
+            candidate = heading.locator(
+                "xpath=" + "/.." * level
+            )
+
+            candidate_text = (
+                candidate
+                .inner_text()
+                .strip()
+            )
+
+            if not candidate_text:
+                continue
+
+            candidate_text_lower = (
+                candidate_text
+                .lower()
+                .replace("\u00a0", " ")
+            )
+
+            # ------------------------------------------------
+            # Check how many H3 titles are inside.
+            #
+            # A real product card should normally contain only
+            # one product title.
+            # ------------------------------------------------
+
+            h3_count = candidate.locator(
+                "h3"
+            ).count()
+
+            if h3_count > 1:
+                continue
+
+            # ------------------------------------------------
+            # Product card indicators
+            # ------------------------------------------------
+
+            indicators = [
+
+                "pln",
+                "zł",
+                "dodaj do koszyka",
+                "add to cart",
+                "niedostępny",
+                "dostępny",
+                "free shipping",
+                "price",
+
+            ]
+
+            if any(
+                indicator in candidate_text_lower
+                for indicator in indicators
+            ):
+
+                print(
+                    "Product card found at level:",
+                    level
+                )
+
+                return candidate
+
+        except Exception:
+
+            continue
+
+    return None
 
 
 # ============================================================
@@ -246,26 +690,9 @@ def get_products(page, product):
         target_storage
     )
 
-    # ========================================================
-    # TARGET PRODUCT NAME
-    # ========================================================
-
-    target_name = (
-        str(product["name"])
-        .lower()
-        .replace("\u00a0", " ")
-        .strip()
-    )
-
-    target_name = re.sub(
-        r"\s+",
-        " ",
-        target_name
-    )
-
     print(
         "Target Product:",
-        target_name
+        product["name"]
     )
 
     # ========================================================
@@ -285,7 +712,7 @@ def get_products(page, product):
             "Could not find NEONET product headings."
         )
 
-        results.append(
+        return [
             {
                 "product_name": product["name"],
                 "variant": "Unknown",
@@ -294,15 +721,15 @@ def get_products(page, product):
                 "price": None,
                 "availability": "Unavailable"
             }
-        )
-
-        return results
+        ]
 
     # ========================================================
     # FIND H3 ELEMENTS
     # ========================================================
 
-    headings = page.locator("h3")
+    headings = page.locator(
+        "h3"
+    )
 
     count = headings.count()
 
@@ -310,8 +737,6 @@ def get_products(page, product):
         "Total NEONET H3:",
         count
     )
-
-    card_index = 0
 
     # ========================================================
     # LOOP THROUGH H3
@@ -333,47 +758,40 @@ def get_products(page, product):
 
             continue
 
+        if not title:
+            continue
+
         print()
+        print("=" * 60)
         print(
-            f"NEONET H3 {i}:",
-            repr(title)
+            "NEONET PRODUCT",
+            i
+        )
+        print("=" * 60)
+
+        print(
+            "TITLE:",
+            title
         )
 
         # ====================================================
         # PRODUCT NAME MATCHING
         # ====================================================
 
-        title_normalized = (
-            title
-            .lower()
-            .replace("\u00a0", " ")
-            .strip()
-        )
-
-        title_normalized = re.sub(
-            r"\s+",
-            " ",
-            title_normalized
-        )
-
-        # ----------------------------------------------------
-        # The target product name must appear in the title
-        # ----------------------------------------------------
-
-        if target_name not in title_normalized:
-
-            print(
-                "Product name mismatch."
-            )
+        if not matches_product(
+            title,
+            product
+        ):
 
             continue
 
-        print(
-            "Product name MATCH."
-        )
-
         # ====================================================
         # FIND PRODUCT INFORMATION CONTAINER
+        #
+        # Keep the previous NEONET logic here.
+        #
+        # We first find an ancestor containing actual product
+        # information, then use its parent as the full card.
         # ====================================================
 
         container = None
@@ -386,14 +804,17 @@ def get_products(page, product):
                     "xpath=" + "/.." * level
                 )
 
-                text = (
+                candidate_text = (
                     candidate
                     .inner_text()
                     .strip()
                 )
 
+                if not candidate_text:
+                    continue
+
                 candidate_text_normalized = (
-                    text
+                    candidate_text
                     .lower()
                     .replace("\u00a0", " ")
                 )
@@ -405,22 +826,44 @@ def get_products(page, product):
                 )
 
                 # ------------------------------------------------
-                # The container must contain:
+                # The container should contain product information.
                 #
-                # 1. target product name
-                # 2. product information / price / availability
+                # We do NOT require RAM/storage here because some
+                # products, such as Redmi A7 Pro, may not display
+                # configuration in the title/container in the same
+                # way as other products.
                 # ------------------------------------------------
 
-                if (
-                    target_name in candidate_text_normalized
-                    and (
-                        "pamięć ram" in candidate_text_normalized
-                        or "pamięć wbudowana" in candidate_text_normalized
-                        or "cena" in candidate_text_normalized
-                        or "dodaj do koszyka" in candidate_text_normalized
-                        or "ostatnie sztuki" in candidate_text_normalized
-                    )
+                product_indicators = [
+
+                    "pamięć ram",
+                    "pamięć wbudowana",
+                    "cena",
+                    "zł",
+                    "pln",
+                    "dodaj do koszyka",
+                    "kup teraz",
+                    "ostatnie sztuki",
+                    "niedostępny",
+                    "najwcześniej u ciebie",
+                    "najwczesniej u ciebie",
+
+                ]
+
+                if any(
+                    indicator in candidate_text_normalized
+                    for indicator in product_indicators
                 ):
+
+                    # Avoid very large containers containing
+                    # multiple product titles.
+
+                    h3_count = candidate.locator(
+                        "h3"
+                    ).count()
+
+                    if h3_count > 1:
+                        continue
 
                     container = candidate
 
@@ -445,8 +888,6 @@ def get_products(page, product):
                 "Could not find product container."
             )
 
-            card_index += 1
-
             continue
 
         # ====================================================
@@ -464,6 +905,27 @@ def get_products(page, product):
                 .inner_text()
                 .strip()
             )
+
+            # ------------------------------------------------
+            # Safety check:
+            #
+            # If the parent contains multiple H3 products,
+            # use the container itself instead.
+            # ------------------------------------------------
+
+            parent_h3_count = product_card.locator(
+                "h3"
+            ).count()
+
+            if parent_h3_count > 1:
+
+                product_card = container
+
+                card_text = (
+                    container
+                    .inner_text()
+                    .strip()
+                )
 
         except Exception:
 
@@ -483,30 +945,31 @@ def get_products(page, product):
         print(
             "NEONET FULL CARD TEXT:"
         )
-
         print(
             "-" * 60
         )
-
         print(
             card_text
         )
-
         print(
             "-" * 60
         )
 
         # ====================================================
-        # EXTRACT RAM
+        # EXTRACT RAM / STORAGE
+        #
+        # IMPORTANT:
+        #
+        # Extract from the actual product card, NOT only from
+        # the title.
+        #
+        # This fixes products such as Redmi A7 Pro where the
+        # title does not contain 4/64.
         # ====================================================
 
         ram = get_ram(
             card_text
         )
-
-        # ====================================================
-        # EXTRACT STORAGE
-        # ====================================================
 
         storage = get_storage(
             card_text
@@ -556,9 +1019,9 @@ def get_products(page, product):
             "RAM / Storage MATCH."
         )
 
-        # ----------------------------------------------------
-        # We found the correct product configuration
-        # ----------------------------------------------------
+        # ====================================================
+        # CORRECT PRODUCT FOUND
+        # ====================================================
 
         product_found = True
 
@@ -577,6 +1040,8 @@ def get_products(page, product):
 
         # ====================================================
         # AVAILABILITY
+        #
+        # Use the full product card.
         # ====================================================
 
         availability = get_availability(
@@ -590,6 +1055,8 @@ def get_products(page, product):
 
         # ====================================================
         # PRICE
+        #
+        # Use the full product card.
         # ====================================================
 
         price = clean_price(
@@ -606,19 +1073,34 @@ def get_products(page, product):
         # ====================================================
 
         result = {
-            "product_name": product["name"],
-            "variant": color,
-            "ram": ram,
-            "storage": storage,
-            "price": price,
-            "availability": availability
+
+            "product_name":
+                product["name"],
+
+            "variant":
+                color,
+
+            "ram":
+                ram,
+
+            "storage":
+                storage,
+
+            "price":
+                price,
+
+            "availability":
+                availability
         }
+
+        print(
+            "RESULT:",
+            result
+        )
 
         results.append(
             result
         )
-
-        card_index += 1
 
     # ========================================================
     # PRODUCT NOT FOUND
@@ -627,9 +1109,7 @@ def get_products(page, product):
     if not product_found:
 
         print()
-        print(
-            "=" * 60
-        )
+        print("=" * 60)
 
         print(
             "NEONET: Target product/configuration not found."
@@ -650,38 +1130,42 @@ def get_products(page, product):
             product["storage"]
         )
 
-        print(
-            "=" * 60
-        )
+        print("=" * 60)
 
-        results.append(
-            {
-                "product_name": product["name"],
-                "variant": "Unknown",
-                "ram": str(product["ram"]) + " GB",
-                "storage": str(product["storage"]) + " GB",
-                "price": None,
-                "availability": "Unavailable"
-            }
-        )
+        results.append({
+
+            "product_name":
+                product["name"],
+
+            "variant":
+                "Unknown",
+
+            "ram":
+                str(product["ram"]) + " GB",
+
+            "storage":
+                str(product["storage"]) + " GB",
+
+            "price":
+                None,
+
+            "availability":
+                "Unavailable"
+        })
 
     # ========================================================
     # SUMMARY
     # ========================================================
 
     print()
-    print(
-        "=" * 60
-    )
+    print("=" * 60)
 
     print(
         "NEONET RESULTS:",
         len(results)
     )
 
-    print(
-        "=" * 60
-    )
+    print("=" * 60)
 
     for result in results:
 
@@ -690,7 +1174,6 @@ def get_products(page, product):
         )
 
     return results
-
 
 # ============================================================
 # COMPATIBILITY FUNCTIONS
