@@ -10,15 +10,15 @@ import sys
 
 
 product = {
-    "target_id": "P16U-8-256",
-    "name": "Redmi Note 15 Pro+ 5G",
-    "model": "P16U",
-    "ram": "8",
-    "storage": "256"
+    "target_id": "LEEDSA-4-128",
+    "name": "Redmi 17",
+    "model": "LEEDSA",
+    "ram": "4",
+    "storage": "128"
 }
 
 url = (
-    "https://maxelektro.pl/wyniki-wyszukiwania?query=Redmi%20Note%2015Pro+%205G%208/256"
+    "https://maxelektro.pl/wyniki-wyszukiwania?query=Redmi%2017%204/128"
 )
 
 
