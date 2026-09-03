@@ -28,9 +28,65 @@ def clean_price(text):
     if not match:
         return None
 
-    return float(
-        match.group(1).replace(",", ".")
+    try:
+        return float(
+            match.group(1).replace(",", ".")
+        )
+
+    except ValueError:
+        return None
+
+
+# ============================================================
+# STORAGE NORMALIZATION
+# ============================================================
+
+def normalize_storage(value):
+
+    """
+    Normalize all storage formats to GB.
+
+    Examples:
+
+    256       -> 256
+    256 GB    -> 256
+    1T        -> 1000
+    1TB       -> 1000
+    1000 GB   -> 1000
+    """
+
+    if value is None:
+        return None
+
+    text = (
+        str(value)
+        .upper()
+        .replace(" ", "")
     )
+
+    # --------------------------------------------------------
+    # TB / T
+    # --------------------------------------------------------
+
+    if re.search(r"1TB|1T\b", text):
+
+        return "1000"
+
+    # --------------------------------------------------------
+    # Normal GB values
+    # --------------------------------------------------------
+
+    digits = re.sub(
+        r"\D",
+        "",
+        text
+    )
+
+    if digits:
+
+        return digits
+
+    return None
 
 
 # ============================================================
@@ -47,21 +103,21 @@ def get_color(title):
         # BLACK
         # ----------------------------------------------------
 
+        "midnight black": "Black",
         "czarny": "Black",
         "czarna": "Black",
         "czarne": "Black",
         "black": "Black",
-        "midnight black": "Black",
 
         # ----------------------------------------------------
         # BLUE
         # ----------------------------------------------------
 
+        "glacier blue": "Blue",
+        "ocean blue": "Blue",
         "niebieski": "Blue",
         "niebieska": "Blue",
         "blue": "Blue",
-        "glacier blue": "Blue",
-        "ocean blue": "Blue",
 
         # ----------------------------------------------------
         # TITANIUM
@@ -75,22 +131,22 @@ def get_color(title):
         # PURPLE
         # ----------------------------------------------------
 
-        "fioletowy": "Purple",
-        "fioletowa": "Purple",
-        "purple": "Purple",
         "aurora purple": "Purple",
         "lawendowy": "Purple",
         "lawendowa": "Purple",
+        "fioletowy": "Purple",
+        "fioletowa": "Purple",
         "lavender": "Purple",
+        "purple": "Purple",
 
         # ----------------------------------------------------
         # GREEN
         # ----------------------------------------------------
 
+        "forest green": "Green",
         "zielony": "Green",
         "zielona": "Green",
         "green": "Green",
-        "forest green": "Green",
 
         # ----------------------------------------------------
         # WHITE
@@ -137,11 +193,10 @@ def get_color(title):
         # BROWN
         # ----------------------------------------------------
 
+        "mocha brown": "Brown",
         "brązowy": "Brown",
         "brązowa": "Brown",
         "brown": "Brown",
-        "mocha brown": "Brown",
-
     }
 
     # Check longer/descriptive names first
@@ -160,29 +215,51 @@ def get_color(title):
 
     return "Unknown"
 
+
 # ============================================================
 # PRODUCT MATCHING
 # ============================================================
 
 def normalize_product_name(text):
 
-    text = str(text).lower()
+    text = (
+        str(text)
+        .lower()
+        .replace("\u00a0", " ")
+        .strip()
+    )
 
+    # --------------------------------------------------------
     # Normalize Pro+
+    # --------------------------------------------------------
+
     text = re.sub(
-        r"pro\s*\+",
+        r"\bpro\s*\+",
         "pro+",
         text
     )
 
+    # --------------------------------------------------------
     # Remove unnecessary punctuation
+    # --------------------------------------------------------
+
     text = re.sub(
-        r"[^a-z0-9+]+",
+        r"[/(),;:_\-]+",
         " ",
         text
     )
 
+    # Keep letters, numbers, spaces and +
+    text = re.sub(
+        r"[^a-z0-9ąćęłńóśźż+\s]",
+        " ",
+        text
+    )
+
+    # --------------------------------------------------------
     # Remove extra spaces
+    # --------------------------------------------------------
+
     text = re.sub(
         r"\s+",
         " ",
@@ -191,6 +268,10 @@ def normalize_product_name(text):
 
     return text
 
+
+# ============================================================
+# REDMI NOTE SIGNATURE
+# ============================================================
 
 def get_redmi_note_signature(text):
 
@@ -207,25 +288,34 @@ def get_redmi_note_signature(text):
 
     model_number = match.group(1)
 
-    # Check Pro / Pro+
     after_note = text[match.end():].strip()
+
+    # --------------------------------------------------------
+    # Version
+    # --------------------------------------------------------
 
     if re.match(
         r"^pro\+",
         after_note
     ):
+
         version = "pro+"
 
     elif re.match(
         r"^pro\b",
         after_note
     ):
+
         version = "pro"
 
     else:
+
         version = "standard"
 
-    # Check 5G
+    # --------------------------------------------------------
+    # 5G
+    # --------------------------------------------------------
+
     has_5g = bool(
         re.search(
             r"\b5g\b",
@@ -240,6 +330,10 @@ def get_redmi_note_signature(text):
     )
 
 
+# ============================================================
+# STRICT PRODUCT MATCHING
+# ============================================================
+
 def product_name_matches(target_name, title):
 
     target_normalized = normalize_product_name(
@@ -250,9 +344,19 @@ def product_name_matches(target_name, title):
         title
     )
 
-    # --------------------------------------------------------
+    print(
+        "NORMALIZED TITLE:",
+        title_normalized
+    )
+
+    print(
+        "NORMALIZED TARGET:",
+        target_normalized
+    )
+
+    # ========================================================
     # STRICT MATCHING FOR REDMI NOTE PRODUCTS
-    # --------------------------------------------------------
+    # ========================================================
 
     if (
         "redmi note" in target_normalized
@@ -274,31 +378,130 @@ def product_name_matches(target_name, title):
             title_signature is not None
         ):
 
-            return (
-                target_signature
-                ==
-                title_signature
+            if target_signature == title_signature:
+
+                print(
+                    "Redmi Note signature MATCH."
+                )
+
+                return True
+
+            print(
+                "Redmi Note signature mismatch."
             )
 
+            return False
+
+    # ========================================================
+    # GENERAL STRICT TOKEN MATCHING
+    #
+    # Prevents:
+    #
+    # Xiaomi 17
+    # matching
+    # Xiaomi 17T
+    #
+    # Xiaomi 17
+    # matching
+    # Xiaomi 17 Pro
+    #
+    # Xiaomi 17T
+    # matching
+    # Xiaomi 17T Pro
+    # ========================================================
+
+    target_tokens = target_normalized.split()
+    title_tokens = title_normalized.split()
+
+    if not target_tokens:
+
+        return False
+
+    # Product-version words that indicate
+    # a different model
+    product_modifiers = {
+
+        "pro",
+        "pro+",
+        "ultra",
+        "max",
+        "lite",
+        "plus",
+
+    }
+
     # --------------------------------------------------------
-    # OTHER PRODUCTS
+    # Look for exact sequence
     # --------------------------------------------------------
 
-    # Exact normalized phrase match
-    pattern = (
-        r"(?:^|\s)"
-        +
-        re.escape(target_normalized)
-        +
-        r"(?:$|\s)"
-    )
+    for start in range(
 
-    return bool(
-        re.search(
-            pattern,
-            title_normalized
+        len(title_tokens)
+        -
+        len(target_tokens)
+        +
+        1
+
+    ):
+
+        end = (
+            start
+            +
+            len(target_tokens)
         )
+
+        # Exact token sequence required
+        if (
+            title_tokens[start:end]
+            !=
+            target_tokens
+        ):
+
+            continue
+
+        # ----------------------------------------------------
+        # Check next word
+        #
+        # Example:
+        #
+        # Target:
+        # Xiaomi 17T
+        #
+        # Title:
+        # Xiaomi 17T Pro
+        #
+        # -> NOT MATCH
+        # ----------------------------------------------------
+
+        if end < len(title_tokens):
+
+            next_token = title_tokens[end]
+
+            if next_token in product_modifiers:
+
+                print(
+                    "Product mismatch: "
+                    f"additional model version "
+                    f"'{next_token}'."
+                )
+
+                continue
+
+        # ----------------------------------------------------
+        # Exact product model found
+        # ----------------------------------------------------
+
+        print(
+            "Product name MATCH."
+        )
+
+        return True
+
+    print(
+        "Product name mismatch."
     )
+
+    return False
 
 
 # ============================================================
@@ -309,7 +512,9 @@ def get_products(page, product):
 
     results = []
 
-    print("Waiting for Electro products...")
+    print(
+        "Waiting for Electro products..."
+    )
 
     # --------------------------------------------------------
     # Find product titles
@@ -334,11 +539,25 @@ def get_products(page, product):
         str(product["ram"])
     )
 
-    target_storage = re.sub(
-        r"\D",
-        "",
-        str(product["storage"])
+    target_storage = normalize_storage(
+        product["storage"]
     )
+
+    print(
+        "TARGET RAM:",
+        target_ram
+    )
+
+    print(
+        "TARGET STORAGE:",
+        target_storage
+    )
+
+    # --------------------------------------------------------
+    # Track whether matching configuration was found
+    # --------------------------------------------------------
+
+    product_found = False
 
     # --------------------------------------------------------
     # Process products
@@ -422,7 +641,11 @@ def get_products(page, product):
 
         else:
 
-            ram = None
+            print(
+                "RAM not found."
+            )
+
+            continue
 
         # ----------------------------------------------------
         # STORAGE
@@ -443,7 +666,11 @@ def get_products(page, product):
 
         else:
 
-            storage = None
+            print(
+                "Storage not found."
+            )
+
+            continue
 
         # ----------------------------------------------------
         # Match RAM / Storage
@@ -452,26 +679,48 @@ def get_products(page, product):
         actual_ram = re.sub(
             r"\D",
             "",
-            str(ram)
+            ram
         )
 
-        actual_storage = re.sub(
-            r"\D",
-            "",
-            str(storage)
+        actual_storage = normalize_storage(
+            storage
         )
 
-        if (
-            actual_ram != target_ram
-            or
-            actual_storage != target_storage
-        ):
+        print(
+            "ACTUAL RAM:",
+            actual_ram
+        )
+
+        print(
+            "ACTUAL STORAGE:",
+            actual_storage
+        )
+
+        if actual_ram != target_ram:
 
             print(
-                "RAM/storage does not match target."
+                "Skipping: RAM mismatch."
             )
 
             continue
+
+        if actual_storage != target_storage:
+
+            print(
+                "Skipping: storage mismatch."
+            )
+
+            continue
+
+        print(
+            "RAM / STORAGE MATCH: YES"
+        )
+
+        # ----------------------------------------------------
+        # Matching product/configuration found
+        # ----------------------------------------------------
+
+        product_found = True
 
         print(
             "RAM:",
@@ -481,10 +730,6 @@ def get_products(page, product):
         print(
             "STORAGE:",
             storage
-        )
-
-        print(
-            "RAM / STORAGE MATCH: YES"
         )
 
         # ----------------------------------------------------
@@ -502,11 +747,6 @@ def get_products(page, product):
 
         # ----------------------------------------------------
         # AVAILABILITY
-        # ----------------------------------------------------
-        #
-        # Electro has a dedicated
-        # .product-show-offer-unavailable
-        # element when unavailable.
         # ----------------------------------------------------
 
         unavailable_element = card.locator(
@@ -594,12 +834,29 @@ def get_products(page, product):
     # PRODUCT NOT FOUND
     # ========================================================
 
-    if not results:
+    if not product_found:
 
         print()
 
+        print("=" * 60)
         print(
-            "Electro: Target product not found."
+            "ELECTRO: TARGET PRODUCT NOT FOUND"
+        )
+        print("=" * 60)
+
+        print(
+            "Product:",
+            product["name"]
+        )
+
+        print(
+            "RAM:",
+            product["ram"]
+        )
+
+        print(
+            "Storage:",
+            product["storage"]
         )
 
         results.append({
@@ -614,7 +871,7 @@ def get_products(page, product):
                 str(product["ram"]) + " GB",
 
             "storage":
-                str(product["storage"]) + " GB",
+                str(product["storage"]),
 
             "price":
                 None,
@@ -625,6 +882,7 @@ def get_products(page, product):
         })
 
     return results
+
 
 # ============================================================
 # UNIFIED SCRAPER INTERFACE

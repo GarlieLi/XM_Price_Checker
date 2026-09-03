@@ -10,17 +10,15 @@ import sys
 
 
 product = {
-    "target_id": "SOMALIAA-4-64",
-    "name": "Redmi A7 pro",
-    "model": "SOMALIAA",
-    "ram": "4",
-    "storage": "64"
+    "target_id": "P12U-12-512",
+    "name": "Xiaomi 17T Pro 5G",
+    "model": "P12U",
+    "ram": "12",
+    "storage": "512"
 }
 
 url = (
-    "https://www.avans.pl/search?"
-    "query[menu_item]=&"
-    "query[querystring]=Redmi%20A7%20pro%20464"
+    "https://www.avans.pl/search?query[menu_item]=&query[querystring]=Xiaomi%2017T%20PRO%205G%2012512"
 )
 
 

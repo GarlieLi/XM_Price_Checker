@@ -21,16 +21,16 @@ sys.path.insert(
 # ============================================================
 
 product = {
-    "target_id": "P6-8-256",
-    "name": "Redmi Note 15 Pro",
-    "model": "P6",
-    "ram": "8",
-    "storage": "256"
+    "target_id": "P12A-12-512",
+    "name": "Xiaomi 17T 5G",
+    "model": "P12A",
+    "ram": "12",
+    "storage": "512"
 }
 
 
 URL = (
-    "https://www.komputronik.pl/search/category/1?query=Redmi+Note+15Pro+8/256"
+    "https://www.komputronik.pl/search/category/1?query=Xiaomi+17T+5G+12/512"
 )
 
 

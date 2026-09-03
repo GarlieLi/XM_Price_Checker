@@ -1,4 +1,5 @@
 import re
+import unicodedata
 
 
 # ============================================================
@@ -15,48 +16,126 @@ def clean_price(price_text):
     text = text.replace("Cena:", "")
     text = text.replace("zł", "")
     text = text.replace("PLN", "")
+    text = text.replace("\u00a0", " ")
+    text = text.replace("\u202f", " ")
 
-    # Remove spaces and non-breaking spaces
-    text = text.replace(" ", "")
-    text = text.replace("\xa0", "")
-
-    # Keep only numbers, comma and dot
     text = re.sub(
-        r"[^0-9,.]",
+        r"[^0-9,.\s]",
         "",
         text
     )
 
+    text = text.strip()
+
     if not text:
         return None
 
-    # Polish format:
-    # 1.899,99 -> 1899.99
+    # Remove spaces used as thousand separators
+    text = re.sub(
+        r"\s+",
+        "",
+        text
+    )
+
+    # Polish format: 3 999,00
     if "," in text and "." in text:
 
-        if text.rfind(",") > text.rfind("."):
-            text = text.replace(".", "")
-            text = text.replace(",", ".")
+        text = text.replace(".", "")
+        text = text.replace(",", ".")
 
-        else:
-            text = text.replace(",", "")
-
-    # 1899,99 -> 1899.99
     elif "," in text:
+
         text = text.replace(",", ".")
 
     try:
-        price = float(text)
+        return float(text)
 
     except ValueError:
         return None
 
-    # A single digit such as "1" is almost certainly
-    # an incomplete price fragment, not a real phone price.
-    if price < 10:
+
+# ============================================================
+# STORAGE NORMALIZATION
+# ============================================================
+
+def normalize_storage(value):
+
+    """
+    Convert different storage formats to GB.
+
+    Examples:
+        256      -> 256
+        256GB    -> 256
+        1T       -> 1000
+        1TB      -> 1000
+        1000 GB  -> 1000
+    """
+
+    if value is None:
         return None
 
-    return price
+    text = str(value).upper()
+
+    text = text.replace(" ", "")
+    text = text.replace("\u00A0", "")
+
+    # 1T / 1TB
+    match = re.search(
+        r"(\d+(?:[.,]\d+)?)T(?:B)?\b",
+        text
+    )
+
+    if match:
+
+        try:
+            return str(
+                int(
+                    float(
+                        match.group(1).replace(",", ".")
+                    ) * 1000
+                )
+            )
+
+        except ValueError:
+            return None
+
+    # GB
+    match = re.search(
+        r"(\d+)\s*GB",
+        text
+    )
+
+    if match:
+        return match.group(1)
+
+    # Plain number
+    match = re.search(
+        r"\d+",
+        text
+    )
+
+    if match:
+        return match.group(0)
+
+    return None
+
+
+def format_storage(value):
+
+    """
+    Format storage nicely for output.
+    """
+
+    normalized = normalize_storage(value)
+
+    if normalized is None:
+        return str(value)
+
+    if normalized == "1000":
+        return "1 TB"
+
+    return normalized + " GB"
+
 
 # ============================================================
 # COLOR
@@ -64,125 +143,147 @@ def clean_price(price_text):
 
 def get_color(title):
 
-    title_lower = title.lower()
+    title_lower = (
+        str(title)
+        .lower()
+    )
 
     color_map = {
 
-        # ----------------------------------------------------
         # BLACK
-        # ----------------------------------------------------
-
         "midnight black": "Black",
         "czarny": "Black",
         "czarna": "Black",
-        "czarne": "Black",
         "black": "Black",
 
-        # ----------------------------------------------------
         # BLUE
-        # ----------------------------------------------------
-
         "glacier blue": "Blue",
         "ocean blue": "Blue",
         "niebieski": "Blue",
         "niebieska": "Blue",
         "blue": "Blue",
 
-        # ----------------------------------------------------
-        # TITANIUM
-        # ----------------------------------------------------
-
-        "tytanowy": "Titanium",
-        "tytanowa": "Titanium",
-        "titanium": "Titanium",
-
-        # ----------------------------------------------------
-        # PURPLE
-        # ----------------------------------------------------
-
-        "aurora purple": "Purple",
-        "fioletowy": "Purple",
-        "fioletowa": "Purple",
-        "lawendowy": "Purple",
-        "lawendowa": "Purple",
-        "purple": "Purple",
-
-        # ----------------------------------------------------
         # GREEN
-        # ----------------------------------------------------
-
         "forest green": "Green",
         "zielony": "Green",
         "zielona": "Green",
         "green": "Green",
 
-        # ----------------------------------------------------
-        # WHITE
-        # ----------------------------------------------------
+        # PURPLE
+        "aurora purple": "Purple",
+        "fioletowy": "Purple",
+        "fioletowa": "Purple",
+        "purple": "Purple",
 
+        # TITANIUM
+        "tytanowy": "Titanium",
+        "tytanowa": "Titanium",
+        "titanium": "Titanium",
+
+        # WHITE
         "biały": "White",
         "biała": "White",
         "white": "White",
 
-        # ----------------------------------------------------
         # GREY
-        # ----------------------------------------------------
-
         "szary": "Grey",
         "szara": "Grey",
         "grey": "Grey",
         "gray": "Grey",
 
-        # ----------------------------------------------------
         # SILVER
-        # ----------------------------------------------------
-
         "srebrny": "Silver",
         "srebrna": "Silver",
         "silver": "Silver",
 
-        # ----------------------------------------------------
         # GOLD
-        # ----------------------------------------------------
-
         "złoty": "Gold",
         "złota": "Gold",
         "gold": "Gold",
 
-        # ----------------------------------------------------
         # PINK
-        # ----------------------------------------------------
-
         "różowy": "Pink",
         "różowa": "Pink",
         "pink": "Pink",
 
-        # ----------------------------------------------------
         # BROWN
-        # ----------------------------------------------------
-
-        "mocha brown": "Brown",
         "brązowy": "Brown",
         "brązowa": "Brown",
         "brown": "Brown",
-
     }
 
-    # Check longer names first
+    # Longer names first
     for color_name in sorted(
         color_map.keys(),
         key=len,
         reverse=True
     ):
 
-        if re.search(
-            rf"\b{re.escape(color_name)}\b",
-            title_lower
-        ):
-
+        if color_name in title_lower:
             return color_map[color_name]
 
     return "Unknown"
+
+
+# ============================================================
+# PRODUCT NAME NORMALIZATION
+# ============================================================
+
+def normalize_product_text(text):
+
+    text = str(text).lower()
+
+    # Remove accents
+    text = unicodedata.normalize(
+        "NFKD",
+        text
+    )
+
+    text = "".join(
+        c
+        for c in text
+        if not unicodedata.combining(c)
+    )
+
+    text = text.replace(
+        "\u00a0",
+        " "
+    )
+
+    # Normalize Pro+
+    text = re.sub(
+        r"\bpro\s*\+",
+        "pro+",
+        text
+    )
+
+    # Separate punctuation
+    text = re.sub(
+        r"[/(),;:_\-]+",
+        " ",
+        text
+    )
+
+    # Keep letters, numbers, spaces and +
+    text = re.sub(
+        r"[^a-z0-9+\s]",
+        " ",
+        text
+    )
+
+    # Normalize spaces
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    ).strip()
+
+    return text
+
+
+# ============================================================
+# PRODUCT MATCHING
+# ============================================================
 
 # ============================================================
 # PRODUCT MATCHING
@@ -190,7 +291,7 @@ def get_color(title):
 
 def normalize_product_name(text):
 
-    text = str(text).lower()
+    text = str(text).lower().strip()
 
     # Normalize Pro+
     text = re.sub(
@@ -199,7 +300,7 @@ def normalize_product_name(text):
         text
     )
 
-    # Remove unnecessary punctuation
+    # Remove punctuation
     text = re.sub(
         r"[^a-z0-9+]+",
         " ",
@@ -216,119 +317,143 @@ def normalize_product_name(text):
     return text
 
 
-def get_redmi_note_signature(text):
+def is_17t_family(text):
 
-    text = normalize_product_name(text)
+    normalized = normalize_product_name(text)
 
-    # Find Redmi Note number
-    match = re.search(
-        r"\bredmi note (\d+)\b",
-        text
-    )
-
-    if not match:
-        return None
-
-    model_number = match.group(1)
-
-    # Text after Redmi Note number
-    after_note = text[match.end():].strip()
-
-    # Check version
-    if re.match(
-        r"^pro\+",
-        after_note
-    ):
-
-        version = "pro+"
-
-    elif re.match(
-        r"^pro\b",
-        after_note
-    ):
-
-        version = "pro"
-
-    else:
-
-        version = "standard"
-
-    # Check 5G
-    has_5g = bool(
+    return bool(
         re.search(
-            r"\b5g\b",
-            text
+            r"\bxiaomi 17t\b",
+            normalized
         )
     )
 
-    return (
-        model_number,
-        version,
-        has_5g
+
+def product_name_matches(target_name, title):
+
+    target_normalized = normalize_product_name(
+        target_name
     )
 
-def product_name_matches(title, target_name):
+    title_normalized = normalize_product_name(
+        title
+    )
 
-    title_lower = title.lower()
-    target_lower = target_name.lower()
+    print(
+        "NORMALIZED TITLE:",
+        title_normalized
+    )
 
-    # Normalize spacing
-    title_lower = re.sub(r"\s+", " ", title_lower).strip()
-    target_lower = re.sub(r"\s+", " ", target_lower).strip()
+    print(
+        "NORMALIZED TARGET:",
+        target_normalized
+    )
 
-    # --------------------------------------------------------
-    # Basic requirement:
-    # target product name must appear
-    # --------------------------------------------------------
+    # ========================================================
+    # SPECIAL CASE:
+    # XIAOMI 17T FAMILY
+    #
+    # KTR often omits "5G" from product titles.
+    # Only for the 17T family, ignore 5G.
+    # ========================================================
 
-    if target_lower not in title_lower:
+    if (
+        is_17t_family(target_normalized)
+        and
+        is_17t_family(title_normalized)
+    ):
+
+        target_normalized = re.sub(
+            r"\b5g\b",
+            "",
+            target_normalized
+        )
+
+        title_normalized = re.sub(
+            r"\b5g\b",
+            "",
+            title_normalized
+        )
+
+        target_normalized = re.sub(
+            r"\s+",
+            " ",
+            target_normalized
+        ).strip()
+
+        title_normalized = re.sub(
+            r"\s+",
+            " ",
+            title_normalized
+        ).strip()
+
+    # ========================================================
+    # STRICT PRODUCT MATCHING
+    #
+    # The target name must appear as a complete phrase.
+    # ========================================================
+
+    pattern = (
+        r"(?:^|\s)"
+        +
+        re.escape(target_normalized)
+        +
+        r"(?=$|\s)"
+    )
+
+    match = re.search(
+        pattern,
+        title_normalized
+    )
+
+    if not match:
+
         return False
 
-    # --------------------------------------------------------
-    # Redmi Note 15 family protection
+    # ========================================================
+    # CHECK WHAT COMES AFTER THE MATCH
     #
     # Prevent:
-    # Redmi Note 15 -> Redmi Note 15 Pro
-    # Redmi Note 15 -> Redmi Note 15 Pro+
-    # --------------------------------------------------------
+    #
+    # Redmi Note 15 Pro
+    # matching
+    # Redmi Note 15 Pro 5G
+    #
+    # Redmi Note 15
+    # matching
+    # Redmi Note 15 Pro
+    #
+    # ========================================================
 
-    target_has_pro = bool(
-        re.search(r"\bpro\+?\b", target_lower)
+    remaining = (
+        title_normalized[match.end():]
+        .strip()
     )
 
-    title_has_pro = bool(
-        re.search(r"\bpro\+?\b", title_lower)
-    )
+    if remaining:
 
-    # Target does NOT contain Pro,
-    # but title does → wrong product
-    if not target_has_pro and title_has_pro:
-        return False
+        next_word = remaining.split()[0]
 
-    # --------------------------------------------------------
-    # Distinguish Pro from Pro+
-    # --------------------------------------------------------
+        model_modifiers = {
+            "5g",
+            "pro",
+            "pro+",
+            "ultra",
+            "lite",
+            "max",
+            "plus",
+            "+",
+        }
 
-    target_has_pro_plus = "pro+" in target_lower
-    title_has_pro_plus = "pro+" in title_lower
+        if next_word in model_modifiers:
 
-    if target_has_pro_plus != title_has_pro_plus:
-        return False
-
-    # --------------------------------------------------------
-    # Distinguish 5G versions
-    # --------------------------------------------------------
-
-    target_has_5g = "5g" in target_lower
-
-    title_has_5g = bool(
-        re.search(r"\b5g\b", title_lower)
-    )
-
-    if target_has_5g != title_has_5g:
-        return False
+            return False
 
     return True
+
+# ============================================================
+# PRICE EXTRACTION
+# ============================================================
 
 def extract_price(card):
 
@@ -336,45 +461,179 @@ def extract_price(card):
         '[data-price-type="final"]'
     ).first
 
-    if price_element.count() == 0:
-        return None
+    if price_element.count() > 0:
 
-    # Try several levels because KTR may split
-    # the whole price across nested HTML elements.
-    candidates = []
-
-    # Exact element
-    try:
-        candidates.append(
-            price_element.inner_text().strip()
+        price_text = (
+            price_element
+            .inner_text()
+            .strip()
         )
-    except:
-        pass
 
-    # Parent
-    try:
-        candidates.append(
-            price_element.locator("xpath=..").inner_text().strip()
+        price = clean_price(
+            price_text
         )
-    except:
-        pass
-
-    # Grandparent
-    try:
-        candidates.append(
-            price_element.locator("xpath=../..").inner_text().strip()
-        )
-    except:
-        pass
-
-    for price_text in candidates:
-
-        price = clean_price(price_text)
 
         if price is not None:
             return price
 
     return None
+
+
+# ============================================================
+# RAM / STORAGE EXTRACTION
+# ============================================================
+
+def extract_ram_storage(card_text, title):
+
+    ram = None
+    storage = None
+
+    # Combine title and card text
+    full_text = f"{title}\n{card_text}"
+
+    # ========================================================
+    # RAM - SPECIFICATIONS
+    # ========================================================
+
+    ram_patterns = [
+
+        r"Pamięć\s+RAM\s*:\s*(\d+)\s*GB",
+
+        r"\bRAM\s*:\s*(\d+)\s*GB",
+
+    ]
+
+    for pattern in ram_patterns:
+
+        match = re.search(
+            pattern,
+            card_text,
+            re.IGNORECASE
+        )
+
+        if match:
+
+            ram = match.group(1) + " GB"
+            break
+
+    # ========================================================
+    # STORAGE - SPECIFICATIONS
+    # ========================================================
+
+    storage_patterns = [
+
+        r"Pamięć\s+Flash\s*:\s*"
+        r"(\d+(?:[.,]\d+)?)\s*(TB|T|GB)",
+
+        r"Pamięć\s+wbudowana\s*:\s*"
+        r"(\d+(?:[.,]\d+)?)\s*(TB|T|GB)",
+
+        r"Pamięć\s+wewnętrzna\s*:\s*"
+        r"(\d+(?:[.,]\d+)?)\s*(TB|T|GB)",
+
+        r"Pojemność\s+pamięci\s*:\s*"
+        r"(\d+(?:[.,]\d+)?)\s*(TB|T|GB)",
+
+        r"\bDysk\s*:\s*"
+        r"(\d+(?:[.,]\d+)?)\s*(TB|T|GB)",
+
+    ]
+
+    for pattern in storage_patterns:
+
+        match = re.search(
+            pattern,
+            card_text,
+            re.IGNORECASE
+        )
+
+        if match:
+
+            raw_storage = (
+                match.group(1)
+                + match.group(2)
+            )
+
+            storage = format_storage(raw_storage)
+
+            break
+
+    # ========================================================
+    # CONFIGURATION FALLBACK
+    # ========================================================
+
+    if ram is None or storage is None:
+
+        config_patterns = [
+
+            # 12 GB / 512 GB
+            r"\b(\d+)\s*GB\s*/\s*"
+            r"(\d+(?:[.,]\d+)?)\s*(TB|T|GB)\b",
+
+            # 12GB/512GB
+            r"\b(\d+)\s*GB\s*/\s*"
+            r"(\d+(?:[.,]\d+)?)\s*(TB|T|GB)\b",
+
+            # 12 / 512 GB
+            r"\b(\d+)\s*/\s*"
+            r"(\d+(?:[.,]\d+)?)\s*(TB|T|GB)\b",
+
+            # 12+512 GB
+            r"\b(\d+)\s*\+\s*"
+            r"(\d+(?:[.,]\d+)?)\s*(TB|T|GB)\b",
+
+            # 12 GB + 512 GB
+            r"\b(\d+)\s*GB\s*\+\s*"
+            r"(\d+(?:[.,]\d+)?)\s*(TB|T|GB)\b",
+
+            # 12/512  (no GB shown)
+            r"\b(4|6|8|12|16|24)\s*/\s*"
+            r"(64|128|256|512|1000|1024)\b",
+
+            # 12+512 (no GB shown)
+            r"\b(4|6|8|12|16|24)\s*\+\s*"
+            r"(64|128|256|512|1000|1024)\b",
+
+        ]
+
+        for pattern in config_patterns:
+
+            match = re.search(
+                pattern,
+                full_text,
+                re.IGNORECASE
+            )
+
+            if not match:
+                continue
+
+            config_ram = match.group(1)
+
+            if len(match.groups()) >= 3:
+
+                config_storage_value = match.group(2)
+                config_storage_unit = match.group(3)
+
+                raw_storage = (
+                    config_storage_value
+                    + config_storage_unit
+                )
+
+            else:
+
+                # Unitless fallback like 12/512
+                raw_storage = match.group(2) + "GB"
+
+            if ram is None:
+                ram = config_ram + " GB"
+
+            if storage is None:
+                storage = format_storage(raw_storage)
+
+            break
+
+    return ram, storage
+
 
 # ============================================================
 # PRODUCTS
@@ -382,11 +641,29 @@ def extract_price(card):
 
 def get_products(page, product):
 
+    results = []
+
+    print()
+    print("=" * 60)
+    print("Waiting for KTR products...")
+    print("=" * 60)
+
     cards = page.locator(
         'div[data-name="listingTile"]'
     )
 
-    results = []
+    try:
+
+        cards.first.wait_for(
+            state="visible",
+            timeout=30000
+        )
+
+    except Exception:
+
+        print(
+            "KTR product cards did not become visible."
+        )
 
     print(
         "KTR product cards:",
@@ -394,7 +671,7 @@ def get_products(page, product):
     )
 
     # --------------------------------------------------------
-    # Target RAM / Storage
+    # TARGET CONFIGURATION
     # --------------------------------------------------------
 
     target_ram = re.sub(
@@ -403,27 +680,62 @@ def get_products(page, product):
         str(product["ram"])
     )
 
-    target_storage = re.sub(
-        r"\D",
-        "",
-        str(product["storage"])
+    target_storage = normalize_storage(
+        product["storage"]
+    )
+
+    print(
+        "TARGET PRODUCT:",
+        product["name"]
+    )
+
+    print(
+        "TARGET RAM:",
+        target_ram
+    )
+
+    print(
+        "TARGET STORAGE:",
+        target_storage,
+        "GB"
     )
 
     # --------------------------------------------------------
-    # Process product cards
+    # Track matching product
+    # --------------------------------------------------------
+
+    product_found = False
+
+    # --------------------------------------------------------
+    # PROCESS CARDS
     # --------------------------------------------------------
 
     for i in range(cards.count()):
 
         card = cards.nth(i)
 
+        print()
+        print("=" * 60)
+        print(
+            "KTR CARD",
+            i
+        )
+        print("=" * 60)
+
         # ----------------------------------------------------
-        # Product title
+        # TITLE
         # ----------------------------------------------------
 
-        title_element = card.locator("h2").first
+        title_element = card.locator(
+            "h2"
+        ).first
 
         if title_element.count() == 0:
+
+            print(
+                "No H2 title found."
+            )
+
             continue
 
         title = (
@@ -432,28 +744,28 @@ def get_products(page, product):
             .strip()
         )
 
-        # ----------------------------------------------------
-        # Match product name
-        # ----------------------------------------------------
-
-        if not product_name_matches(
-            title,
-            product["name"]
-            ):
-            continue
-
-        print()
-        print("=" * 60)
-        print("KTR PRODUCT", i)
-        print("=" * 60)
-
         print(
             "TITLE:",
             title
         )
 
         # ----------------------------------------------------
-        # Card text
+        # PRODUCT MATCHING
+        # ----------------------------------------------------
+
+        if not product_name_matches(
+            product["name"],
+            title
+        ):
+            print("Product name mismatch.")
+            continue
+
+        print(
+            "PRODUCT NAME MATCH: YES"
+        )
+
+        # ----------------------------------------------------
+        # CARD TEXT
         # ----------------------------------------------------
 
         card_text = (
@@ -463,13 +775,21 @@ def get_products(page, product):
         )
 
         print()
-        print("CARD TEXT:")
-        print("-" * 60)
-        print(card_text)
-        print("-" * 60)
+        print(
+            "CARD TEXT:"
+        )
+        print(
+            "-" * 60
+        )
+        print(
+            card_text
+        )
+        print(
+            "-" * 60
+        )
 
         # ----------------------------------------------------
-        # EXCLUDE OUTLET PRODUCTS
+        # EXCLUDE OUTLET
         # ----------------------------------------------------
 
         if "outlet" in card_text.lower():
@@ -483,92 +803,11 @@ def get_products(page, product):
         # ----------------------------------------------------
         # RAM / STORAGE
         # ----------------------------------------------------
-        #
-        # First try product specifications.
-        # If a specification is missing, fall back to
-        # extracting RAM/storage from the product title.
-        #
-        # Example:
-        # Xiaomi Redmi 17 4/128GB Zielony
-        # ----------------------------------------------------
 
-        ram_match = re.search(
-            r"Pamięć RAM:\s*([0-9]+\s*GB)",
+        ram, storage = extract_ram_storage(
             card_text,
-            re.IGNORECASE
+            title
         )
-
-        ram = (
-            ram_match.group(1)
-            if ram_match
-            else None
-        )
-
-        storage_match = re.search(
-            r"Pamięć Flash:\s*([0-9]+\s*GB)",
-            card_text,
-            re.IGNORECASE
-        )
-
-        storage = (
-            storage_match.group(1)
-            if storage_match
-            else None
-        )
-
-        # ----------------------------------------------------
-        # FALLBACK: RAM / STORAGE FROM TITLE
-        # ----------------------------------------------------
-
-        title_memory_match = re.search(
-            r"(\d+)\s*/\s*(\d+)\s*GB",
-            title,
-            re.IGNORECASE
-        )
-
-        if title_memory_match:
-
-            if ram is None:
-
-                ram = (
-                    title_memory_match.group(1)
-                    + " GB"
-                )
-
-            if storage is None:
-
-                storage = (
-                    title_memory_match.group(2)
-                    + " GB"
-                )
-
-        # ----------------------------------------------------
-        # Match RAM / Storage
-        # ----------------------------------------------------
-
-        actual_ram = re.sub(
-            r"\D",
-            "",
-            str(ram)
-        )
-
-        actual_storage = re.sub(
-            r"\D",
-            "",
-            str(storage)
-        )
-
-        if (
-            actual_ram != target_ram
-            or
-            actual_storage != target_storage
-        ):
-
-            print(
-                "RAM/storage does not match target."
-            )
-
-            continue
 
         print(
             "RAM:",
@@ -580,11 +819,60 @@ def get_products(page, product):
             storage
         )
 
+        actual_ram = re.sub(
+            r"\D",
+            "",
+            str(ram)
+        )
+
+        actual_storage = normalize_storage(
+            storage
+        )
+
+        print(
+            "ACTUAL RAM:",
+            actual_ram
+        )
+
+        print(
+            "ACTUAL STORAGE:",
+            actual_storage
+        )
+
+        # ----------------------------------------------------
+        # MATCH CONFIGURATION
+        # ----------------------------------------------------
+
+        if actual_ram != target_ram:
+
+            print(
+                "Skipping: RAM mismatch."
+            )
+
+            continue
+
+        if actual_storage != target_storage:
+
+            print(
+                "Skipping: storage mismatch."
+            )
+
+            continue
+
+        print(
+            "RAM / STORAGE MATCH: YES"
+        )
+
+        # Matching configuration found
+        product_found = True
+
         # ----------------------------------------------------
         # COLOR
         # ----------------------------------------------------
 
-        color = get_color(title)
+        color = get_color(
+            title
+        )
 
         print(
             "COLOR:",
@@ -594,31 +882,28 @@ def get_products(page, product):
         # ----------------------------------------------------
         # AVAILABILITY
         # ----------------------------------------------------
-        #
-        # Check unavailable phrases first.
-        # Then check positive availability signals.
-        # ----------------------------------------------------
 
         card_text_lower = card_text.lower()
 
         if (
-            "produkt niedostępny" in card_text_lower
+            "produkt niedostępny"
+            in card_text_lower
             or
-            "chwilowo niedostępny" in card_text_lower
+            "chwilowo niedostępny"
+            in card_text_lower
+            or
+            "brak w magazynie"
+            in card_text_lower
         ):
 
             availability = "Unavailable"
 
         elif (
-            "produkt dostepny w magazynie" in card_text_lower
+            "dodaj do koszyka"
+            in card_text_lower
             or
-            "produkt dostępny w magazynie" in card_text_lower
-            or
-            "dostępny w salonach" in card_text_lower
-            or
-            "dodaj do koszyka" in card_text_lower
-            or
-            "do koszyka" in card_text_lower
+            "dostępny"
+            in card_text_lower
         ):
 
             availability = "Available"
@@ -636,7 +921,9 @@ def get_products(page, product):
         # PRICE
         # ----------------------------------------------------
 
-        price = extract_price(card)
+        price = extract_price(
+            card
+        )
 
         print(
             "PRICE:",
@@ -644,47 +931,81 @@ def get_products(page, product):
         )
 
         # ----------------------------------------------------
-        # RESULT
+        # SAVE RESULT
         # ----------------------------------------------------
 
         result = {
-            "product_name": product["name"],
-            "variant": color,
-            "ram": ram,
-            "storage": storage,
-            "price": price,
-            "availability": availability,
+
+            "product_name":
+                product["name"],
+
+            "variant":
+                color,
+
+            "ram":
+                ram,
+
+            "storage":
+                storage,
+
+            "price":
+                price,
+
+            "availability":
+                availability,
         }
+
+        results.append(
+            result
+        )
 
         print(
             "RESULT:",
             result
         )
 
-        results.append(result)
-
     # ========================================================
-    # PRODUCT NOT FOUND
+    # NOT FOUND
     # ========================================================
 
-    if not results:
+    if not product_found:
 
         print()
+        print("=" * 60)
         print(
-            "KTR: Target product not found."
+            "KTR: TARGET PRODUCT NOT FOUND"
         )
+        print("=" * 60)
 
         results.append({
-            "product_name": product["name"],
-            "variant": "Unknown",
-            "ram": str(product["ram"]) + " GB",
-            "storage": str(product["storage"]) + " GB",
-            "price": None,
-            "availability": "Unavailable",
+
+            "product_name":
+                product["name"],
+
+            "variant":
+                "Unknown",
+
+            "ram":
+                str(product["ram"]) + " GB",
+
+            "storage":
+                format_storage(
+                    product["storage"]
+                ),
+
+            "price":
+                None,
+
+            "availability":
+                "Unavailable",
         })
 
     return results
 
+
+# ============================================================
+# UNIFIED INTERFACE
+# ============================================================
 
 def get_price_results(page, product):
 
