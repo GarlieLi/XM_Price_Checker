@@ -245,12 +245,11 @@ def matches_product(title, product):
     )
 
     # ========================================================
-    # SPECIAL CASES
+    # SPECIAL CASE:
+    # Xiaomi 17 family
     #
-    # Ignore the 5G difference only for:
-    #
-    # - Xiaomi 17 family (excluding Xiaomi 17T family)
-    # - POCO X8 family
+    # Ignore 5G naming difference for Xiaomi 17 family,
+    # but NOT Xiaomi 17T family.
     # ========================================================
 
     xiaomi_17_family = (
@@ -258,6 +257,13 @@ def matches_product(title, product):
         and
         not target_normalized.startswith("xiaomi 17t")
     )
+
+    # ========================================================
+    # SPECIAL CASE:
+    # POCO X8 family
+    #
+    # Ignore 5G naming difference.
+    # ========================================================
 
     poco_x8_family = (
         target_normalized.startswith("poco x8")
@@ -269,139 +275,196 @@ def matches_product(title, product):
         poco_x8_family
     )
 
-    if ignore_5g_difference:
-
-        target_normalized = re.sub(
-            r"\b5g\b",
-            "",
-            target_normalized
-        )
-
-        title_normalized = re.sub(
-            r"\b5g\b",
-            "",
-            title_normalized
-        )
-
-        target_normalized = re.sub(
-            r"\s+",
-            " ",
-            target_normalized
-        ).strip()
-
-        title_normalized = re.sub(
-            r"\s+",
-            " ",
-            title_normalized
-        ).strip()
-
-        print(
-            "SPECIAL PRODUCT FAMILY: ignoring 5G difference."
-        )
-
     # ========================================================
-    # CONNECTIVITY MATCHING
+    # STYLUS / BUNDLE MATCHING
     #
-    # Distinguish between:
+    # Do not mix:
     #
-    # Wi-Fi
-    # LTE / 4G
-    # 5G
+    # Xiaomi Pad 8
+    #
+    # with:
+    #
+    # Xiaomi Pad 8 + Stylus
+    # Xiaomi Pad 8 with Stylus
     # ========================================================
 
-    target_tokens_set = set(
-        target_normalized.split()
+    target_has_stylus = bool(
+        re.search(
+            r"\bstylus\b",
+            target_normalized
+        )
     )
 
-    title_tokens_set = set(
-        title_normalized.split()
+    title_has_stylus = bool(
+        re.search(
+            r"\bstylus\b",
+            title_normalized
+        )
     )
 
-    target_has_5g = (
-        "5g" in target_tokens_set
-    )
-
-    target_has_lte = (
-        "lte" in target_tokens_set
-        or
-        "4g" in target_tokens_set
-    )
-
-    title_has_5g = (
-        "5g" in title_tokens_set
-    )
-
-    title_has_lte = (
-        "lte" in title_tokens_set
-        or
-        "4g" in title_tokens_set
-    )
-
-    # --------------------------------------------------------
-    # Target specifically requires 5G
-    # --------------------------------------------------------
-
-    if target_has_5g and not title_has_5g:
+    if target_has_stylus != title_has_stylus:
 
         print(
-            "Product mismatch: target is 5G "
-            "but website product is not."
+            "Product mismatch: Stylus bundle does not match."
         )
 
         return False
 
-    # --------------------------------------------------------
-    # Target specifically requires LTE / 4G
-    # --------------------------------------------------------
+    # ========================================================
+    # 4G / LTE MATCHING
+    #
+    # IMPORTANT:
+    #
+    # Do NOT apply this rule globally.
+    #
+    # Only protect the base Redmi Pad 2 from being mixed
+    # with Redmi Pad 2 4G / LTE versions.
+    # ========================================================
 
-    if target_has_lte and not title_has_lte:
+    is_base_redmi_pad_2 = bool(
+        re.fullmatch(
+            r"redmi pad 2",
+            target_normalized
+        )
+    )
 
-        print(
-            "Product mismatch: target is LTE/4G "
-            "but website product is not."
+    if is_base_redmi_pad_2:
+
+        title_has_lte_or_4g = bool(
+            re.search(
+                r"\b(?:4g|lte)\b",
+                title_normalized
+            )
         )
 
-        return False
+        target_has_lte_or_4g = bool(
+            re.search(
+                r"\b(?:4g|lte)\b",
+                target_normalized
+            )
+        )
 
-    # --------------------------------------------------------
-    # Target is normal Wi-Fi / non-cellular version
+        if target_has_lte_or_4g != title_has_lte_or_4g:
+
+            print(
+                "Product mismatch: Redmi Pad 2 connectivity "
+                "version does not match."
+            )
+
+            return False
+
+    # ========================================================
+    # 5G MATCHING
     #
-    # Reject LTE, 4G and 5G products.
-    # --------------------------------------------------------
+    # Strict for normal products.
+    #
+    # Ignore only for:
+    # - Xiaomi 17 family
+    # - POCO X8 family
+    # ========================================================
 
-    if (
-        not target_has_5g
-        and
-        not target_has_lte
-    ):
+    target_has_5g = bool(
+        re.search(
+            r"\b5g\b",
+            target_normalized
+        )
+    )
 
-        if title_has_5g:
+    title_has_5g = bool(
+        re.search(
+            r"\b5g\b",
+            title_normalized
+        )
+    )
+
+    if not ignore_5g_difference:
+
+        if target_has_5g != title_has_5g:
 
             print(
-                "Product mismatch: website product "
-                "is a 5G version."
+                "Product mismatch: 5G version does not match."
             )
 
             return False
 
-        if title_has_lte:
+    else:
 
-            print(
-                "Product mismatch: website product "
-                "is an LTE/4G version."
-            )
-
-            return False
+        print(
+            "SPECIAL PRODUCT FAMILY: "
+            "ignoring 5G difference."
+        )
 
     print(
         "CONNECTIVITY MATCH: YES"
     )
 
     # ========================================================
-    # PRODUCT NAME MATCHING
+    # REMOVE CONNECTIVITY WORDS FOR PRODUCT NAME MATCHING
     #
-    # Require all product-name tokens to appear in the correct
-    # order, but allow specifications between them.
+    # We already checked them above.
+    #
+    # Remove:
+    # - 5G
+    # - 4G
+    # - LTE
+    # ========================================================
+
+    title_core = re.sub(
+        r"\b(?:5g|4g|lte)\b",
+        "",
+        title_normalized
+    )
+
+    target_core = re.sub(
+        r"\b(?:5g|4g|lte)\b",
+        "",
+        target_normalized
+    )
+
+    title_core = re.sub(
+        r"\s+",
+        " ",
+        title_core
+    ).strip()
+
+    target_core = re.sub(
+        r"\s+",
+        " ",
+        target_core
+    ).strip()
+
+    title_tokens = title_core.split()
+
+    target_tokens = target_core.split()
+
+    # ========================================================
+    # PRODUCT MODIFIERS
+    #
+    # Prevent shorter products from matching longer versions.
+    #
+    # Example:
+    #
+    # Redmi Pad 2
+    #
+    # must NOT match:
+    #
+    # Redmi Pad 2 Pro
+    # Redmi Pad 2 Pro 5G
+    # ========================================================
+
+    product_modifiers = {
+        "pro",
+        "pro+",
+        "ultra",
+        "max",
+        "lite",
+        "plus",
+    }
+
+    # ========================================================
+    # FIND PRODUCT TOKENS IN ORDER
+    #
+    # Allow specifications between product-name words.
     #
     # Example:
     #
@@ -409,16 +472,13 @@ def matches_product(title, product):
     # Redmi Pad 2 Pro 5G
     #
     # Website:
-    # Redmi Pad 2 Pro 12.1 5G 6GB 128GB Szary
+    # Redmi Pad 2 Pro 12 1 5G 6GB 128GB
     #
-    # The 12.1 screen size should not break the match.
     # ========================================================
 
-    target_tokens = target_normalized.split()
-
-    title_tokens = title_normalized.split()
-
     position = 0
+
+    matched_positions = []
 
     for target_token in target_tokens:
 
@@ -428,9 +488,13 @@ def matches_product(title, product):
 
             if title_tokens[position] == target_token:
 
-                found = True
+                matched_positions.append(
+                    position
+                )
 
                 position += 1
+
+                found = True
 
                 break
 
@@ -443,6 +507,36 @@ def matches_product(title, product):
             )
 
             return False
+
+    # ========================================================
+    # PREVENT SHORTER MODEL MATCHING LONGER MODEL
+    #
+    # Check the word immediately after the last matched
+    # product-name token.
+    # ========================================================
+
+    if matched_positions:
+
+        last_position = matched_positions[-1]
+
+        if last_position + 1 < len(title_tokens):
+
+            next_token = title_tokens[
+                last_position + 1
+            ]
+
+            if next_token in product_modifiers:
+
+                # Only reject if that modifier is NOT already
+                # part of the target product name.
+                if next_token not in target_tokens:
+
+                    print(
+                        "Product mismatch: website title has "
+                        f"additional model version '{next_token}'."
+                    )
+
+                    return False
 
     print(
         "PRODUCT NAME MATCH: YES"
@@ -513,19 +607,30 @@ def extract_memory(text):
     # 12GB 512GB
     # 12 GB 512 GB
     # 12/512
-    # 12 / 1TB
+    #
+    # Also:
+    #
+    # 12+512GB
+    # 12 GB + 512 GB
+    # 12GB+512GB
     # --------------------------------------------------------
 
     patterns = [
 
         # 12 GB / 512 GB
-        r"(\d+)\s*GB\s*/\s*(\d+)\s*(GB|TB|T)\b",
+        r"\b(\d+)\s*GB\s*/\s*(\d+)\s*(GB|TB|T)\b",
+
+        # 12 GB + 512 GB
+        r"\b(\d+)\s*GB\s*\+\s*(\d+)\s*(GB|TB|T)\b",
+
+        # 12+512GB
+        r"\b(\d+)\s*\+\s*(\d+)\s*(GB|TB|T)\b",
 
         # 12GB 512GB
-        r"(\d+)\s*GB\s+(\d+)\s*(GB|TB|T)\b",
+        r"\b(\d+)\s*GB\s+(\d+)\s*(GB|TB|T)\b",
 
         # 12 / 512 GB
-        r"(\d+)\s*/\s*(\d+)\s*(GB|TB|T)\b",
+        r"\b(\d+)\s*/\s*(\d+)\s*(GB|TB|T)\b",
 
         # 12/512
         r"\b(\d+)\s*/\s*(\d+)\b",
@@ -546,14 +651,13 @@ def extract_memory(text):
 
         storage_value = match.group(2)
 
-        # Pattern 12/512 has no unit
-        if len(match.groups()) >= 3:
-
-            storage_unit = match.group(3)
-
-        else:
-
-            storage_unit = "GB"
+        # Some patterns have a storage unit,
+        # while 12/512 does not.
+        storage_unit = (
+            match.group(3)
+            if len(match.groups()) >= 3
+            else "GB"
+        )
 
         if storage_unit:
 
@@ -563,10 +667,7 @@ def extract_memory(text):
 
             storage_unit = "GB"
 
-        if storage_unit in (
-            "TB",
-            "T"
-        ):
+        if storage_unit in ("TB", "T"):
 
             storage = str(
                 int(storage_value) * 1000

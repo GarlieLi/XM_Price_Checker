@@ -9,15 +9,15 @@ import subprocess
 
 
 product = {
-    "target_id": "P83X-6-128",
-    "name": "Redmi Pad 2 Pro 5G",
-    "model": "P83X",
-    "ram": "6",
-    "storage": "128"
+    "target_id": "SOMALIAA-4-64",
+    "name": "Redmi A7 pro",
+    "model": "SOMALIAA",
+    "ram": "4",
+    "storage": "64"
 }
 
 url = (
-    "https://mediamarkt.pl/pl/search.html?query=Redmi%20Pad%202%20Pro%205G%206%2F128"
+    "https://mediamarkt.pl/pl/search.html?query=Redmi%20A7%20pro%204%2F64"
 )
 
 

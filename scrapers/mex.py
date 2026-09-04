@@ -165,7 +165,7 @@ def matches_product(title, product):
     #
     # Products sold with a Stylus/Rysik must not be mixed with
     # the normal product unless the target explicitly contains
-    # a Stylus/Rysik/Pen indicator.
+    # a Stylus/Rysik indicator.
     #
     # Media Expert may use the Polish word "Rysik".
     # --------------------------------------------------------
@@ -208,33 +208,187 @@ def matches_product(title, product):
         return False
 
     # --------------------------------------------------------
-    # LTE / 4G MATCHING
+    # 4G / LTE MATCHING
     #
-    # LTE versions must remain different from normal/Wi-Fi
-    # versions.
+    # IMPORTANT:
+    #
+    # Do NOT apply this rule globally.
+    #
+    # Only protect the base Redmi Pad 2 from being mixed
+    # with Redmi Pad 2 4G / LTE versions.
+    #
+    # For normal smartphones, Media Expert may include
+    # "4G LTE" in the title even when the target name
+    # does not include it.
     # --------------------------------------------------------
 
-    target_has_lte = bool(
-        re.search(
-            r"\b(?:lte|4g)\b",
+    is_base_redmi_pad_2 = bool(
+        re.fullmatch(
+            r"redmi pad 2",
             target_normalized
         )
     )
 
-    title_has_lte = bool(
+    if is_base_redmi_pad_2:
+
+        title_has_lte_or_4g = bool(
+            re.search(
+                r"\b(?:4g|lte)\b",
+                title_normalized
+            )
+        )
+
+        target_has_lte_or_4g = bool(
+            re.search(
+                r"\b(?:4g|lte)\b",
+                target_normalized
+            )
+        )
+
+        if target_has_lte_or_4g != title_has_lte_or_4g:
+
+            print(
+                "Product mismatch: Redmi Pad 2 connectivity "
+                "version does not match."
+            )
+
+            return False
+
+    # --------------------------------------------------------
+    # 5G MATCHING
+    # --------------------------------------------------------
+
+    target_has_5g = bool(
         re.search(
-            r"\b(?:lte|4g)\b",
+            r"\b5g\b",
+            target_normalized
+        )
+    )
+
+    title_has_5g = bool(
+        re.search(
+            r"\b5g\b",
             title_normalized
         )
     )
 
-    if target_has_lte != title_has_lte:
+    # --------------------------------------------------------
+    # Strict 5G matching for everything except the
+    # explicitly defined special families
+    # --------------------------------------------------------
+
+    if not ignore_5g_difference:
+
+        if target_has_5g != title_has_5g:
+
+            print(
+                "Product mismatch: 5G version does not match."
+            )
+
+            return False
+
+    else:
 
         print(
-            "Product mismatch: LTE/4G version does not match."
+            "Special product family: "
+            "ignoring 5G naming difference."
         )
 
-        return False
+    # --------------------------------------------------------
+    # Remove connectivity labels for core product comparison
+    #
+    # 4G/LTE has only been treated specially for Redmi Pad 2.
+    # 5G has already been checked according to the rules above.
+    # --------------------------------------------------------
+
+    target_core = re.sub(
+        r"\b(?:5g|lte|4g)\b",
+        "",
+        target_normalized
+    )
+
+    title_core = re.sub(
+        r"\b(?:5g|lte|4g)\b",
+        "",
+        title_normalized
+    )
+
+    target_core = re.sub(
+        r"\s+",
+        " ",
+        target_core
+    ).strip()
+
+    title_core = re.sub(
+        r"\s+",
+        " ",
+        title_core
+    ).strip()
+
+    target_tokens = target_core.split()
+
+    title_tokens = title_core.split()
+
+    # --------------------------------------------------------
+    # Product modifiers
+    #
+    # These must remain distinct.
+    # --------------------------------------------------------
+
+    product_modifiers = {
+        "pro",
+        "pro+",
+        "ultra",
+        "max",
+        "lite",
+        "plus",
+    }
+
+    # --------------------------------------------------------
+    # Find exact product-name token sequence
+    # --------------------------------------------------------
+
+    for start in range(
+        len(title_tokens) - len(target_tokens) + 1
+    ):
+
+        end = start + len(target_tokens)
+
+        if (
+            title_tokens[start:end]
+            != target_tokens
+        ):
+
+            continue
+
+        # ----------------------------------------------------
+        # Prevent shorter models matching longer versions
+        # ----------------------------------------------------
+
+        if end < len(title_tokens):
+
+            next_token = title_tokens[end]
+
+            if next_token in product_modifiers:
+
+                print(
+                    "Product mismatch: website title has "
+                    f"additional model version '{next_token}'."
+                )
+
+                continue
+
+        print(
+            "PRODUCT NAME MATCH: YES"
+        )
+
+        return True
+
+    print(
+        "Product name mismatch."
+    )
+
+    return False
 
     # --------------------------------------------------------
     # 5G MATCHING
