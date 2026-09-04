@@ -6,17 +6,15 @@ import json
 PROJECT_FOLDER = r"C:\Users\New\.vscode\Python_projects\XM_Price_Checker"
 
 PRODUCT = {
-    "target_id": "O19AE-6-128",
-    "name": "Redmi 15",
-    "model": "O19AE",
-    "ram": "6",
-    "storage": "128"
+    "target_id": "P10-12-512",
+    "name": "POCO X8 Pro",
+    "model": "P19",
+    "ram": "12",
+    "storage": "512"
 }
 
 URL = (
-    "https://www.mediaexpert.pl/"
-    "search?query[menu_item]=&"
-    "query[querystring]=Redmi%2015%206%2F128"
+    "https://www.mediaexpert.pl/search?query[menu_item]=&query[querystring]=POCO%20X8%20Pro%2012%2F512"
 )
 
 

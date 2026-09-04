@@ -248,16 +248,15 @@ def matches_product(title, product):
     )
 
     # ========================================================
-    # SPECIAL CASE:
-    # XIAOMI 17 FAMILY
+    # SPECIAL CASES:
     #
-    # MediaMarkt may add "5G" to:
-    # Xiaomi 17
-    # Xiaomi 17 Ultra
+    # Some product families may omit "5G" in our target name,
+    # while MediaMarkt includes "5G" in the website title.
     #
-    # Our product names may not contain 5G.
+    # ONLY ignore the 5G difference for:
     #
-    # ONLY ignore the 5G difference for the Xiaomi 17 family.
+    # - Xiaomi 17 family (excluding Xiaomi 17T family)
+    # - POCO X8 family
     # ========================================================
 
     xiaomi_17_family = (
@@ -266,7 +265,17 @@ def matches_product(title, product):
         not target_normalized.startswith("xiaomi 17t")
     )
 
-    if xiaomi_17_family:
+    poco_x8_family = (
+        target_normalized.startswith("poco x8")
+    )
+
+    ignore_5g_difference = (
+        xiaomi_17_family
+        or
+        poco_x8_family
+    )
+
+    if ignore_5g_difference:
 
         target_normalized = re.sub(
             r"\b5g\b",
@@ -293,7 +302,7 @@ def matches_product(title, product):
         ).strip()
 
         print(
-            "XIAOMI 17 FAMILY: ignoring 5G difference."
+            "SPECIAL PRODUCT FAMILY: ignoring 5G difference."
         )
 
         print(

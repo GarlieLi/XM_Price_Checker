@@ -129,13 +129,15 @@ def matches_product(title, product):
     )
 
     # --------------------------------------------------------
-    # SPECIAL CASE:
-    # XIAOMI 17 FAMILY
+    # SPECIAL CASES:
     #
-    # Xiaomi product data may omit 5G in our target name,
-    # while the website includes it.
+    # Some product families may omit 5G in our target name,
+    # while Media Expert includes 5G in the website title.
     #
-    # For the Xiaomi 17 family only, ignore the 5G difference.
+    # For these families only, ignore the 5G difference:
+    #
+    # - Xiaomi 17 family
+    # - POCO X8 family
     # --------------------------------------------------------
 
     is_xiaomi_17_family = bool(
@@ -143,6 +145,19 @@ def matches_product(title, product):
             r"\bxiaomi 17(?:\s|$)",
             target_normalized
         )
+    )
+
+    is_poco_x8_family = bool(
+        re.search(
+            r"\bpoco x8(?:\s|$)",
+            target_normalized
+        )
+    )
+
+    ignore_5g_difference = (
+        is_xiaomi_17_family
+        or
+        is_poco_x8_family
     )
 
     # --------------------------------------------------------
@@ -164,10 +179,11 @@ def matches_product(title, product):
     )
 
     # --------------------------------------------------------
-    # Strict 5G matching for everything except Xiaomi 17 family
+    # Strict 5G matching for everything except the
+    # explicitly defined special families
     # --------------------------------------------------------
 
-    if not is_xiaomi_17_family:
+    if not ignore_5g_difference:
 
         if target_has_5g != title_has_5g:
 
@@ -180,7 +196,7 @@ def matches_product(title, product):
     else:
 
         print(
-            "Xiaomi 17 family: ignoring 5G naming difference."
+            "Special product family: ignoring 5G naming difference."
         )
 
     # --------------------------------------------------------
@@ -223,6 +239,7 @@ def matches_product(title, product):
     # Xiaomi 17 != Xiaomi 17 Ultra
     # Xiaomi 17T != Xiaomi 17T Pro
     # Redmi Note 15 != Redmi Note 15 Pro
+    # POCO X8 Pro != POCO X8 Pro Max
     # --------------------------------------------------------
 
     product_modifiers = {
