@@ -429,6 +429,95 @@ def matches_product(title, product):
 
     return False
 
+# ============================================================
+# STORAGE NORMALIZATION
+# ============================================================
+
+def normalize_storage_value(value):
+
+    if value is None:
+        return ""
+
+    text = (
+        str(value)
+        .lower()
+        .replace("\u00a0", " ")
+        .strip()
+    )
+
+    # Remove spaces for easier matching
+    compact = re.sub(
+        r"\s+",
+        "",
+        text
+    )
+
+    # --------------------------------------------------------
+    # TB / T formats
+    #
+    # Examples:
+    #
+    # 1T
+    # 1TB
+    # 1 TB
+    # --------------------------------------------------------
+
+    tb_match = re.search(
+        r"(\d+(?:[.,]\d+)?)\s*(tb|t)\b",
+        text
+    )
+
+    if not tb_match:
+
+        tb_match = re.search(
+            r"(\d+(?:[.,]\d+)?)(tb|t)",
+            compact
+        )
+
+    if tb_match:
+
+        number = (
+            tb_match
+            .group(1)
+            .replace(",", ".")
+        )
+
+        try:
+
+            return str(
+                int(
+                    float(number) * 1000
+                )
+            )
+
+        except ValueError:
+
+            return ""
+
+    # --------------------------------------------------------
+    # GB formats
+    #
+    # Examples:
+    #
+    # 512
+    # 512GB
+    # 512 GB
+    # --------------------------------------------------------
+
+    gb_match = re.search(
+        r"(\d+)",
+        text
+    )
+
+    if gb_match:
+
+        return gb_match.group(1)
+
+    return ""
+
+# ============================================================
+# RAM / STORAGE
+# ============================================================
 
 # ============================================================
 # RAM / STORAGE
@@ -444,20 +533,54 @@ def get_configuration_from_title(title):
     # 8/256 GB
     # 8/256GB
     # 4 / 128 GB
+    # 12/1TB
+    # 12 / 1 TB
     # --------------------------------------------------------
 
     match = re.search(
-        r"(\d+)\s*/\s*(\d+)\s*GB",
+        r"(\d+)\s*/\s*(\d+(?:[.,]\d+)?)\s*(GB|TB|T)\b",
         title,
         re.IGNORECASE
     )
 
     if match:
 
-        return (
-            match.group(1) + " GB",
-            match.group(2) + " GB"
+        ram = match.group(1) + " GB"
+
+        storage_number = match.group(2)
+
+        storage_unit = (
+            match.group(3)
+            .upper()
         )
+
+        if storage_unit in ("TB", "T"):
+
+            try:
+
+                storage = (
+                    str(
+                        int(
+                            float(
+                                storage_number.replace(",", ".")
+                            ) * 1000
+                        )
+                    )
+                    + " GB"
+                )
+
+            except ValueError:
+
+                storage = "Unknown"
+
+        else:
+
+            storage = (
+                storage_number
+                + " GB"
+            )
+
+        return ram, storage
 
     return None, None
 
@@ -479,15 +602,44 @@ def get_ram(text):
 
 def get_storage(text):
 
+    text = str(text)
+
     match = re.search(
-        r"Pamięć\s+wbudowana:\s*(\d+)\s*GB",
+        r"Pamięć\s+wbudowana:\s*"
+        r"(\d+(?:[.,]\d+)?)\s*(GB|TB|T)\b",
         text,
         re.IGNORECASE
     )
 
     if match:
 
-        return match.group(1) + " GB"
+        number = match.group(1)
+
+        unit = (
+            match.group(2)
+            .upper()
+        )
+
+        if unit in ("TB", "T"):
+
+            try:
+
+                return (
+                    str(
+                        int(
+                            float(
+                                number.replace(",", ".")
+                            ) * 1000
+                        )
+                    )
+                    + " GB"
+                )
+
+            except ValueError:
+
+                return "Unknown"
+
+        return number + " GB"
 
     return "Unknown"
 
@@ -644,7 +796,6 @@ def find_product_card(heading):
 
     return None
 
-
 # ============================================================
 # GET PRODUCTS
 # ============================================================
@@ -653,16 +804,149 @@ def get_products(page, product):
 
     results = []
 
-    # --------------------------------------------------------
-    # Track whether the correct product + configuration
-    # was found
-    # --------------------------------------------------------
-
     product_found = False
 
     print(
         "Waiting for NEONET products..."
     )
+
+    # ========================================================
+    # STORAGE NORMALIZATION
+    #
+    # Treat:
+    #
+    # 1T
+    # 1TB
+    # 1000GB
+    #
+    # as the same storage configuration.
+    # ========================================================
+
+    def normalize_storage(value):
+
+        if value is None:
+            return None
+
+        text = (
+            str(value)
+            .upper()
+            .replace("\u00A0", " ")
+            .strip()
+        )
+
+        text = re.sub(
+            r"\s+",
+            "",
+            text
+        )
+
+        # ----------------------------------------------------
+        # 1T / 1TB
+        # ----------------------------------------------------
+
+        tb_match = re.fullmatch(
+            r"(\d+(?:\.\d+)?)TB?",
+            text
+        )
+
+        if tb_match:
+
+            try:
+
+                return str(
+                    int(
+                        float(
+                            tb_match.group(1)
+                        ) * 1000
+                    )
+                )
+
+            except ValueError:
+
+                return None
+
+        # ----------------------------------------------------
+        # 512GB / 256GB / 1000GB
+        # ----------------------------------------------------
+
+        gb_match = re.search(
+            r"(\d+)\s*GB",
+            text
+        )
+
+        if gb_match:
+
+            return gb_match.group(1)
+
+        # ----------------------------------------------------
+        # Plain number
+        #
+        # Example:
+        # 512
+        # ----------------------------------------------------
+
+        number_match = re.fullmatch(
+            r"\d+",
+            text
+        )
+
+        if number_match:
+
+            return number_match.group()
+
+        return None
+
+
+    # ========================================================
+    # CONFIGURATION EXTRACTION
+    #
+    # Supports:
+    #
+    # 12/512GB
+    # 12 / 512 GB
+    # 12/1TB
+    # 12/1T
+    # 8/256GB
+    # ========================================================
+
+    def get_configuration(text):
+
+        if not text:
+
+            return None, None
+
+        text = str(text)
+
+        match = re.search(
+            r"(\d+)\s*/\s*"
+            r"(\d+(?:\.\d+)?)\s*"
+            r"(GB|TB|T)\b",
+            text,
+            re.IGNORECASE
+        )
+
+        if match:
+
+            ram_value = match.group(1)
+
+            storage_value = (
+                match.group(2)
+                + match.group(3)
+            )
+
+            storage_normalized = normalize_storage(
+                storage_value
+            )
+
+            if storage_normalized:
+
+                return (
+                    ram_value + " GB",
+                    storage_normalized + " GB"
+                )
+
+        return None, None
+
 
     # ========================================================
     # TARGET RAM / STORAGE
@@ -674,10 +958,8 @@ def get_products(page, product):
         str(product["ram"])
     )
 
-    target_storage = re.sub(
-        r"\D",
-        "",
-        str(product["storage"])
+    target_storage = normalize_storage(
+        product["storage"]
     )
 
     print(
@@ -687,7 +969,8 @@ def get_products(page, product):
 
     print(
         "Target Storage:",
-        target_storage
+        target_storage,
+        "GB"
     )
 
     print(
@@ -696,7 +979,7 @@ def get_products(page, product):
     )
 
     # ========================================================
-    # WAIT FOR PRODUCT HEADINGS
+    # WAIT FOR PRODUCTS
     # ========================================================
 
     try:
@@ -713,18 +996,35 @@ def get_products(page, product):
         )
 
         return [
+
             {
-                "product_name": product["name"],
-                "variant": "Unknown",
-                "ram": str(product["ram"]) + " GB",
-                "storage": str(product["storage"]) + " GB",
-                "price": None,
-                "availability": "Unavailable"
+                "product_name":
+                    product["name"],
+
+                "variant":
+                    "Unknown",
+
+                "ram":
+                    str(product["ram"]) + " GB",
+
+                "storage":
+                    (
+                        str(target_storage) + " GB"
+                        if target_storage
+                        else str(product["storage"])
+                    ),
+
+                "price":
+                    None,
+
+                "availability":
+                    "Unavailable"
             }
+
         ]
 
     # ========================================================
-    # FIND H3 ELEMENTS
+    # FIND PRODUCT HEADINGS
     # ========================================================
 
     headings = page.locator(
@@ -739,7 +1039,7 @@ def get_products(page, product):
     )
 
     # ========================================================
-    # LOOP THROUGH H3
+    # PROCESS PRODUCTS
     # ========================================================
 
     for i in range(count):
@@ -759,6 +1059,7 @@ def get_products(page, product):
             continue
 
         if not title:
+
             continue
 
         print()
@@ -776,6 +1077,10 @@ def get_products(page, product):
 
         # ====================================================
         # PRODUCT NAME MATCHING
+        #
+        # Uses your existing strict matches_product() function.
+        #
+        # No 5G exception is added here yet.
         # ====================================================
 
         if not matches_product(
@@ -786,202 +1091,145 @@ def get_products(page, product):
             continue
 
         # ====================================================
-        # FIND PRODUCT INFORMATION CONTAINER
-        #
-        # Keep the previous NEONET logic here.
-        #
-        # We first find an ancestor containing actual product
-        # information, then use its parent as the full card.
+        # RAM / STORAGE FROM TITLE
         # ====================================================
 
-        container = None
-
-        for level in range(1, 9):
-
-            try:
-
-                candidate = heading.locator(
-                    "xpath=" + "/.." * level
-                )
-
-                candidate_text = (
-                    candidate
-                    .inner_text()
-                    .strip()
-                )
-
-                if not candidate_text:
-                    continue
-
-                candidate_text_normalized = (
-                    candidate_text
-                    .lower()
-                    .replace("\u00a0", " ")
-                )
-
-                candidate_text_normalized = re.sub(
-                    r"\s+",
-                    " ",
-                    candidate_text_normalized
-                )
-
-                # ------------------------------------------------
-                # The container should contain product information.
-                #
-                # We do NOT require RAM/storage here because some
-                # products, such as Redmi A7 Pro, may not display
-                # configuration in the title/container in the same
-                # way as other products.
-                # ------------------------------------------------
-
-                product_indicators = [
-
-                    "pamięć ram",
-                    "pamięć wbudowana",
-                    "cena",
-                    "zł",
-                    "pln",
-                    "dodaj do koszyka",
-                    "kup teraz",
-                    "ostatnie sztuki",
-                    "niedostępny",
-                    "najwcześniej u ciebie",
-                    "najwczesniej u ciebie",
-
-                ]
-
-                if any(
-                    indicator in candidate_text_normalized
-                    for indicator in product_indicators
-                ):
-
-                    # Avoid very large containers containing
-                    # multiple product titles.
-
-                    h3_count = candidate.locator(
-                        "h3"
-                    ).count()
-
-                    if h3_count > 1:
-                        continue
-
-                    container = candidate
-
-                    print(
-                        "Product container found at level:",
-                        level
-                    )
-
-                    break
-
-            except Exception:
-
-                continue
-
-        # ====================================================
-        # CONTAINER NOT FOUND
-        # ====================================================
-
-        if container is None:
-
-            print(
-                "Could not find product container."
-            )
-
-            continue
-
-        # ====================================================
-        # FULL PRODUCT CARD
-        # ====================================================
-
-        try:
-
-            product_card = container.locator(
-                "xpath=.."
-            )
-
-            card_text = (
-                product_card
-                .inner_text()
-                .strip()
-            )
-
-            # ------------------------------------------------
-            # Safety check:
-            #
-            # If the parent contains multiple H3 products,
-            # use the container itself instead.
-            # ------------------------------------------------
-
-            parent_h3_count = product_card.locator(
-                "h3"
-            ).count()
-
-            if parent_h3_count > 1:
-
-                product_card = container
-
-                card_text = (
-                    container
-                    .inner_text()
-                    .strip()
-                )
-
-        except Exception:
-
-            product_card = container
-
-            card_text = (
-                container
-                .inner_text()
-                .strip()
-            )
-
-        # ====================================================
-        # DEBUG: FULL CARD TEXT
-        # ====================================================
-
-        print()
-        print(
-            "NEONET FULL CARD TEXT:"
-        )
-        print(
-            "-" * 60
-        )
-        print(
-            card_text
-        )
-        print(
-            "-" * 60
-        )
-
-        # ====================================================
-        # EXTRACT RAM / STORAGE
-        #
-        # IMPORTANT:
-        #
-        # Extract from the actual product card, NOT only from
-        # the title.
-        #
-        # This fixes products such as Redmi A7 Pro where the
-        # title does not contain 4/64.
-        # ====================================================
-
-        ram = get_ram(
-            card_text
-        )
-
-        storage = get_storage(
-            card_text
+        ram, storage = get_configuration(
+            title
         )
 
         print(
-            "Detected RAM:",
+            "TITLE RAM:",
             ram
         )
 
         print(
-            "Detected Storage:",
+            "TITLE STORAGE:",
+            storage
+        )
+
+        # ====================================================
+        # FIND PRODUCT CARD
+        #
+        # We find the card before giving up, because sometimes
+        # the title may not contain the configuration.
+        # ====================================================
+
+        card = find_product_card(
+            heading
+        )
+
+        if card is None:
+
+            print(
+                "Could not find a tight product card."
+            )
+
+            continue
+
+        try:
+
+            card_text = (
+                card
+                .inner_text()
+                .strip()
+            )
+
+        except Exception:
+
+            print(
+                "Could not read product card."
+            )
+
+            continue
+
+        print()
+        print(
+            "CARD TEXT:"
+        )
+        print(
+            "-" * 60
+        )
+        print(
+            card_text
+        )
+        print(
+            "-" * 60
+        )
+
+        # ====================================================
+        # FALLBACK: GET CONFIGURATION FROM CARD
+        # ====================================================
+
+        if ram is None or storage is None:
+
+            card_ram, card_storage = get_configuration(
+                card_text
+            )
+
+            if card_ram is not None:
+
+                ram = card_ram
+
+            if card_storage is not None:
+
+                storage = card_storage
+
+        # ====================================================
+        # FALLBACK: RAM / STORAGE FROM SPECIFICATIONS
+        # ====================================================
+
+        if ram is None:
+
+            ram_match = re.search(
+                r"Pamięć\s+RAM:\s*"
+                r"(\d+)\s*GB",
+                card_text,
+                re.IGNORECASE
+            )
+
+            if ram_match:
+
+                ram = (
+                    ram_match.group(1)
+                    + " GB"
+                )
+
+        if storage is None:
+
+            storage_match = re.search(
+                r"Pamięć\s+wbudowana:\s*"
+                r"(\d+(?:\.\d+)?)\s*"
+                r"(GB|TB|T)\b",
+                card_text,
+                re.IGNORECASE
+            )
+
+            if storage_match:
+
+                storage_value = (
+                    storage_match.group(1)
+                    + storage_match.group(2)
+                )
+
+                normalized_storage = normalize_storage(
+                    storage_value
+                )
+
+                if normalized_storage:
+
+                    storage = (
+                        normalized_storage
+                        + " GB"
+                    )
+
+        print(
+            "FINAL RAM:",
+            ram
+        )
+
+        print(
+            "FINAL STORAGE:",
             storage
         )
 
@@ -995,10 +1243,8 @@ def get_products(page, product):
             str(ram)
         )
 
-        storage_number = re.sub(
-            r"\D",
-            "",
-            str(storage)
+        storage_number = normalize_storage(
+            storage
         )
 
         if (
@@ -1008,9 +1254,23 @@ def get_products(page, product):
         ):
 
             print(
-                "RAM / Storage mismatch:",
-                ram,
-                storage
+                "RAM / Storage mismatch."
+            )
+
+            print(
+                "Expected:",
+                target_ram,
+                "GB /",
+                target_storage,
+                "GB"
+            )
+
+            print(
+                "Found:",
+                ram_number,
+                "GB /",
+                storage_number,
+                "GB"
             )
 
             continue
@@ -1040,13 +1300,83 @@ def get_products(page, product):
 
         # ====================================================
         # AVAILABILITY
-        #
-        # Use the full product card.
         # ====================================================
 
-        availability = get_availability(
+        card_text_lower = (
             card_text
+            .lower()
+            .replace("\u00a0", " ")
         )
+
+        # ----------------------------------------------------
+        # Explicitly unavailable FIRST
+        # ----------------------------------------------------
+
+        if (
+
+            "produkt niedostępny"
+            in card_text_lower
+
+            or
+
+            "chwilowo niedostępny"
+            in card_text_lower
+
+            or
+
+            "brak produktu"
+            in card_text_lower
+
+            or
+
+            "brak w magazynie"
+            in card_text_lower
+
+        ):
+
+            availability = "Unavailable"
+
+        # ----------------------------------------------------
+        # Explicitly available
+        # ----------------------------------------------------
+
+        elif (
+
+            "dodaj do koszyka"
+            in card_text_lower
+
+            or
+
+            "kup teraz"
+            in card_text_lower
+
+            or
+
+            "dostępny"
+            in card_text_lower
+
+            or
+
+            "dostepny"
+            in card_text_lower
+
+            or
+
+            "najwcześniej u ciebie"
+            in card_text_lower
+
+            or
+
+            "najwczesniej u ciebie"
+            in card_text_lower
+
+        ):
+
+            availability = "Available"
+
+        else:
+
+            availability = "Unknown"
 
         print(
             "AVAILABILITY:",
@@ -1055,8 +1385,6 @@ def get_products(page, product):
 
         # ====================================================
         # PRICE
-        #
-        # Use the full product card.
         # ====================================================
 
         price = clean_price(
@@ -1144,7 +1472,11 @@ def get_products(page, product):
                 str(product["ram"]) + " GB",
 
             "storage":
-                str(product["storage"]) + " GB",
+                (
+                    str(target_storage) + " GB"
+                    if target_storage
+                    else str(product["storage"])
+                ),
 
             "price":
                 None,

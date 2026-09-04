@@ -129,6 +129,23 @@ def matches_product(title, product):
     )
 
     # --------------------------------------------------------
+    # SPECIAL CASE:
+    # XIAOMI 17 FAMILY
+    #
+    # Xiaomi product data may omit 5G in our target name,
+    # while the website includes it.
+    #
+    # For the Xiaomi 17 family only, ignore the 5G difference.
+    # --------------------------------------------------------
+
+    is_xiaomi_17_family = bool(
+        re.search(
+            r"\bxiaomi 17(?:\s|$)",
+            target_normalized
+        )
+    )
+
+    # --------------------------------------------------------
     # 5G MATCHING
     # --------------------------------------------------------
 
@@ -146,13 +163,25 @@ def matches_product(title, product):
         )
     )
 
-    if target_has_5g != title_has_5g:
+    # --------------------------------------------------------
+    # Strict 5G matching for everything except Xiaomi 17 family
+    # --------------------------------------------------------
+
+    if not is_xiaomi_17_family:
+
+        if target_has_5g != title_has_5g:
+
+            print(
+                "Product mismatch: 5G version does not match."
+            )
+
+            return False
+
+    else:
 
         print(
-            "Product mismatch: 5G version does not match."
+            "Xiaomi 17 family: ignoring 5G naming difference."
         )
-
-        return False
 
     # --------------------------------------------------------
     # Remove 5G for core product comparison
@@ -183,20 +212,17 @@ def matches_product(title, product):
     ).strip()
 
     target_tokens = target_core.split()
+
     title_tokens = title_core.split()
 
     # --------------------------------------------------------
-    # Find exact product-name token sequence
+    # Product modifiers
     #
-    # Prevent:
+    # These must remain distinct.
     #
-    # Redmi Note 15
-    # matching
-    # Redmi Note 15 Pro
-    #
-    # Redmi Note 15 Pro
-    # matching
-    # Redmi Note 15 Pro+
+    # Xiaomi 17 != Xiaomi 17 Ultra
+    # Xiaomi 17T != Xiaomi 17T Pro
+    # Redmi Note 15 != Redmi Note 15 Pro
     # --------------------------------------------------------
 
     product_modifiers = {
@@ -207,6 +233,10 @@ def matches_product(title, product):
         "lite",
         "plus",
     }
+
+    # --------------------------------------------------------
+    # Find exact product-name token sequence
+    # --------------------------------------------------------
 
     for start in range(
         len(title_tokens) - len(target_tokens) + 1
@@ -221,7 +251,10 @@ def matches_product(title, product):
 
             continue
 
-        # Check the next word after the target model
+        # ----------------------------------------------------
+        # Prevent shorter models matching longer versions
+        # ----------------------------------------------------
+
         if end < len(title_tokens):
 
             next_token = title_tokens[end]
@@ -370,6 +403,43 @@ def get_color(text):
 
     return "Unknown"
 
+def normalize_storage(value):
+
+    if value is None:
+        return None
+
+    text = str(value).upper().strip()
+
+    # Remove spaces
+    text = re.sub(r"\s+", "", text)
+
+    # 1T / 1TB -> 1000 GB
+    tb_match = re.fullmatch(
+        r"(\d+(?:\.\d+)?)TB?",
+        text
+    )
+
+    if tb_match:
+
+        tb_value = float(
+            tb_match.group(1)
+        )
+
+        return str(
+            int(tb_value * 1000)
+        )
+
+    # Normal GB values
+    gb_match = re.search(
+        r"\d+",
+        text
+    )
+
+    if gb_match:
+
+        return gb_match.group()
+
+    return None
 
 # ============================================================
 # RAM / STORAGE
@@ -738,10 +808,19 @@ def get_products(page, product):
         str(product["ram"])
     )
 
-    target_storage = re.sub(
-        r"\D",
-        "",
-        str(product["storage"])
+    target_storage = normalize_storage(
+        product["storage"]
+    )
+
+    print(
+        "TARGET RAM:",
+        target_ram
+    )
+
+    print(
+        "TARGET STORAGE:",
+        target_storage,
+        "GB"
     )
 
     # --------------------------------------------------------
@@ -811,6 +890,25 @@ def get_products(page, product):
             )
 
             # ------------------------------------------------
+            # OUTLET PRODUCTS
+            #
+            # Do not use outlet / clearance products
+            # as normal competitor offers.
+            # ------------------------------------------------
+
+            if (
+                "outlet" in title.lower()
+                or
+                "outlet" in card_text.lower()
+            ):
+
+                print(
+                    "Skipping OUTLET product."
+                )
+
+                continue
+
+            # ------------------------------------------------
             # RAM / STORAGE
             # ------------------------------------------------
 
@@ -830,7 +928,7 @@ def get_products(page, product):
             )
 
             # ------------------------------------------------
-            # Match RAM / storage
+            # Normalize RAM / storage
             # ------------------------------------------------
 
             actual_ram = re.sub(
@@ -839,11 +937,24 @@ def get_products(page, product):
                 str(ram)
             )
 
-            actual_storage = re.sub(
-                r"\D",
-                "",
-                str(storage)
+            actual_storage = normalize_storage(
+                storage
             )
+
+            print(
+                "ACTUAL RAM:",
+                actual_ram
+            )
+
+            print(
+                "ACTUAL STORAGE:",
+                actual_storage,
+                "GB"
+            )
+
+            # ------------------------------------------------
+            # Match RAM / storage
+            # ------------------------------------------------
 
             if (
                 actual_ram != target_ram
@@ -988,9 +1099,48 @@ def get_products(page, product):
     if not product_found:
 
         print()
+
         print(
             "Target product not found on Media Expert."
         )
+
+        # Format RAM
+        target_ram_display = (
+            str(product["ram"])
+            + " GB"
+        )
+
+        # Format storage properly
+        original_storage = str(
+            product["storage"]
+        ).upper()
+
+        if (
+            "T" in original_storage
+            and
+            "GB" not in original_storage
+        ):
+
+            target_storage_display = (
+                original_storage
+                .replace("TB", " TB")
+                .replace("T", " TB")
+                .strip()
+            )
+
+            # Fix possible double spacing / TB
+            target_storage_display = re.sub(
+                r"\s+",
+                " ",
+                target_storage_display
+            )
+
+        else:
+
+            target_storage_display = (
+                str(product["storage"])
+                + " GB"
+            )
 
         results.append({
 
@@ -1001,10 +1151,10 @@ def get_products(page, product):
                 "Unknown",
 
             "ram":
-                str(product["ram"]) + " GB",
+                target_ram_display,
 
             "storage":
-                str(product["storage"]) + " GB",
+                target_storage_display,
 
             "price":
                 None,

@@ -243,6 +243,10 @@ def get_color(title):
 # Product Matching
 # ------------------------------------------------------------
 
+# ------------------------------------------------------------
+# Product Matching
+# ------------------------------------------------------------
+
 def normalize_product_text(text):
 
     text = (
@@ -281,6 +285,179 @@ def normalize_product_text(text):
     ).strip()
 
     return text
+
+
+def matches_product(title, product):
+
+    # --------------------------------------------------------
+    # Normalize title and target product name
+    # --------------------------------------------------------
+
+    title_normalized = normalize_product_text(
+        title
+    )
+
+    target_normalized = normalize_product_text(
+        product["name"]
+    )
+
+    print(
+        "NORMALIZED TITLE:",
+        title_normalized
+    )
+
+    print(
+        "NORMALIZED TARGET:",
+        target_normalized
+    )
+
+    # --------------------------------------------------------
+    # STRICT 5G MATCHING
+    #
+    # Target with 5G must match title with 5G.
+    # Target without 5G must not match title with 5G.
+    #
+    # Max Elektro is NOT KTR, so we do not ignore 5G here.
+    # --------------------------------------------------------
+
+    target_has_5g = bool(
+        re.search(
+            r"\b5g\b",
+            target_normalized
+        )
+    )
+
+    title_has_5g = bool(
+        re.search(
+            r"\b5g\b",
+            title_normalized
+        )
+    )
+
+    if target_has_5g != title_has_5g:
+
+        print(
+            "Product mismatch: 5G version does not match."
+        )
+
+        return False
+
+    # --------------------------------------------------------
+    # Remove 5G AFTER checking it
+    #
+    # This allows us to compare the actual model name while
+    # still requiring both products to have the same 5G status.
+    # --------------------------------------------------------
+
+    target_core = re.sub(
+        r"\b5g\b",
+        "",
+        target_normalized
+    )
+
+    title_core = re.sub(
+        r"\b5g\b",
+        "",
+        title_normalized
+    )
+
+    target_core = re.sub(
+        r"\s+",
+        " ",
+        target_core
+    ).strip()
+
+    title_core = re.sub(
+        r"\s+",
+        " ",
+        title_core
+    ).strip()
+
+    target_tokens = target_core.split()
+    title_tokens = title_core.split()
+
+    if not target_tokens:
+
+        return False
+
+    # --------------------------------------------------------
+    # Product version words
+    #
+    # These indicate that the title may be a different model.
+    # --------------------------------------------------------
+
+    product_modifiers = {
+        "pro",
+        "pro+",
+        "ultra",
+        "max",
+        "lite",
+        "plus",
+    }
+
+    # --------------------------------------------------------
+    # Find exact product-name token sequence
+    #
+    # Examples:
+    #
+    # Xiaomi 17
+    # ≠ Xiaomi 17T
+    #
+    # Xiaomi 17T
+    # ≠ Xiaomi 17T Pro
+    #
+    # Redmi Note 15
+    # ≠ Redmi Note 15 Pro
+    #
+    # Redmi Note 15 Pro
+    # ≠ Redmi Note 15 Pro+
+    # --------------------------------------------------------
+
+    for start in range(
+        len(title_tokens)
+        - len(target_tokens)
+        + 1
+    ):
+
+        end = (
+            start
+            + len(target_tokens)
+        )
+
+        candidate = title_tokens[start:end]
+
+        if candidate != target_tokens:
+
+            continue
+
+        # ----------------------------------------------------
+        # Check what comes immediately after the product name
+        # ----------------------------------------------------
+
+        if end < len(title_tokens):
+
+            next_token = title_tokens[end]
+
+            if next_token in product_modifiers:
+
+                print(
+                    "Product mismatch: website title has "
+                    f"additional model version '{next_token}'."
+                )
+
+                continue
+
+        print(
+            "Product name MATCH."
+        )
+
+        return True
+
+    print(
+        "Product name mismatch."
+    )
+
+    return False
 
 
 def matches_product(title, product):
@@ -449,6 +626,65 @@ def matches_product(title, product):
     # --------------------------------------------------------
 
     return True
+
+# ------------------------------------------------------------
+# Storage Normalization
+# ------------------------------------------------------------
+
+def normalize_storage_to_gb(value):
+
+    if value is None:
+
+        return None
+
+    text = (
+        str(value)
+        .lower()
+        .replace("\u00a0", " ")
+        .replace(" ", "")
+        .strip()
+    )
+
+    # --------------------------------------------------------
+    # TB / T
+    #
+    # 1TB
+    # 1T
+    # 1 TB
+    # --------------------------------------------------------
+
+    tb_match = re.fullmatch(
+        r"(\d+(?:[.,]\d+)?)tb?",
+        text
+    )
+
+    if tb_match:
+
+        number = float(
+            tb_match.group(1).replace(",", ".")
+        )
+
+        return str(
+            int(number * 1000)
+        )
+
+    # --------------------------------------------------------
+    # GB
+    #
+    # 512GB
+    # 512
+    # --------------------------------------------------------
+
+    gb_match = re.search(
+        r"(\d+)",
+        text
+    )
+
+    if gb_match:
+
+        return gb_match.group(1)
+
+    return None
 
 
 # ------------------------------------------------------------
@@ -671,10 +907,19 @@ def get_products(page, product):
         str(product["ram"])
     )
 
-    target_storage = re.sub(
-        r"\D",
-        "",
-        str(product["storage"])
+    target_storage = normalize_storage_to_gb(
+        product["storage"]
+    )
+
+    print(
+        "TARGET RAM:",
+        target_ram
+    )
+
+    print(
+        "TARGET STORAGE:",
+        target_storage,
+        "GB"
     )
 
     # --------------------------------------------------------
@@ -753,15 +998,11 @@ def get_products(page, product):
             print(
                 "CARD TEXT:"
             )
-            print(
-                "-" * 60
-            )
+            print("-" * 60)
             print(
                 card_text
             )
-            print(
-                "-" * 60
-            )
+            print("-" * 60)
 
             # ------------------------------------------------
             # RAM
@@ -794,13 +1035,18 @@ def get_products(page, product):
             # ------------------------------------------------
             # Storage
             #
-            # Example:
+            # Supports:
             #
-            # Redmi Note 15 Pro+ 8/256GB
+            # 8/256GB
+            # 12/512GB
+            # 12/1TB
+            # 12/1T
             # ------------------------------------------------
 
             storage_match = re.search(
-                r"\d+\s*/\s*(\d+)\s*GB",
+                r"\d+\s*/\s*"
+                r"(\d+(?:[.,]\d+)?)\s*"
+                r"(GB|TB|T)\b",
                 title,
                 re.IGNORECASE
             )
@@ -813,9 +1059,40 @@ def get_products(page, product):
 
                 continue
 
-            storage = (
+            storage_number = (
                 storage_match.group(1)
+            )
+
+            storage_unit = (
+                storage_match.group(2)
+                .upper()
+            )
+
+            storage_raw = (
+                storage_number
+                + storage_unit
+            )
+
+            storage_value = normalize_storage_to_gb(
+                storage_raw
+            )
+
+            if storage_value is None:
+
+                print(
+                    "STORAGE could not be normalized."
+                )
+
+                continue
+
+            storage = (
+                storage_value
                 + " GB"
+            )
+
+            print(
+                "STORAGE RAW:",
+                storage_raw
             )
 
             print(
@@ -833,20 +1110,33 @@ def get_products(page, product):
                 ram
             )
 
-            storage_match_value = re.sub(
-                r"\D",
-                "",
+            storage_match_value = normalize_storage_to_gb(
                 storage
             )
 
-            if (
-                ram_match_value != target_ram
-                or
-                storage_match_value != target_storage
-            ):
+            print(
+                "ACTUAL RAM:",
+                ram_match_value
+            )
+
+            print(
+                "ACTUAL STORAGE:",
+                storage_match_value,
+                "GB"
+            )
+
+            if ram_match_value != target_ram:
 
                 print(
-                    "RAM / STORAGE MATCH: NO"
+                    "Skipping: RAM mismatch."
+                )
+
+                continue
+
+            if storage_match_value != target_storage:
+
+                print(
+                    "Skipping: storage mismatch."
                 )
 
                 continue
@@ -1002,9 +1292,11 @@ def get_products(page, product):
 
         print()
         print("=" * 60)
+
         print(
             "MAX ELEKTRO: TARGET PRODUCT NOT FOUND"
         )
+
         print("=" * 60)
 
         print(
@@ -1026,6 +1318,25 @@ def get_products(page, product):
             "Availability: Unavailable"
         )
 
+        # Normalize fallback storage for display
+
+        fallback_storage = normalize_storage_to_gb(
+            product["storage"]
+        )
+
+        if fallback_storage:
+
+            fallback_storage = (
+                fallback_storage
+                + " GB"
+            )
+
+        else:
+
+            fallback_storage = str(
+                product["storage"]
+            )
+
         results.append({
 
             "product_name":
@@ -1035,10 +1346,11 @@ def get_products(page, product):
                 "Unknown",
 
             "ram":
-                str(product["ram"]) + " GB",
+                str(product["ram"])
+                + " GB",
 
             "storage":
-                str(product["storage"]) + " GB",
+                fallback_storage,
 
             "price":
                 None,
@@ -1053,10 +1365,12 @@ def get_products(page, product):
 
     print()
     print("=" * 60)
+
     print(
         "MAX ELEKTRO RESULTS:",
         len(results)
     )
+
     print("=" * 60)
 
     for result in results:
