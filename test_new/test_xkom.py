@@ -14,11 +14,11 @@ import subprocess
 # ============================================================
 
 product = {
-    "target_id": "P12U-12-1T",
-    "name": "Xiaomi 17T PRO 5G",
-    "model": "P12U",
-    "ram": "12",
-    "storage": "1T"
+    "target_id": "P83-6-128",
+    "name": "Redmi Pad 2 Pro",
+    "model": "P83",
+    "ram": "6",
+    "storage": "128"
 }
 
 
@@ -27,7 +27,7 @@ product = {
 # ============================================================
 
 url = (
-    "https://www.x-kom.pl/szukaj?q=Xiaomi%2017T%20PRO%205G%201TB"
+    "https://www.x-kom.pl/szukaj?q=Redmi%20Pad%202%20Pro%206%2F128"
 )
 
 

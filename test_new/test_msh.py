@@ -9,15 +9,15 @@ import subprocess
 
 
 product = {
-    "target_id": "P1-16-512",
-    "name": "Xiaomi 17 Ultra",
-    "model": "P1",
-    "ram": "16",
-    "storage": "512"
+    "target_id": "P83X-6-128",
+    "name": "Redmi Pad 2 Pro 5G",
+    "model": "P83X",
+    "ram": "6",
+    "storage": "128"
 }
 
 url = (
-    "https://mediamarkt.pl/pl/search.html?query=Xiaomi%2017%20Ultra%2016%2F512"
+    "https://mediamarkt.pl/pl/search.html?query=Redmi%20Pad%202%20Pro%205G%206%2F128"
 )
 
 
@@ -44,7 +44,7 @@ print("=" * 60)
 
 
 script = (
-    r"C:\Users\New\.vscode\Python_projects"
+    r"C:\Users\garli\Python_Projects"
     r"\XM_Price_Checker\run_price_check.py"
 )
 

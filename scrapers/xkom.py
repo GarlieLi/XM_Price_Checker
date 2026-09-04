@@ -183,6 +183,10 @@ def get_color(title):
 # PRODUCT MATCHING
 # ============================================================
 
+# ============================================================
+# PRODUCT MATCHING
+# ============================================================
+
 def normalize_product_text(text):
 
     text = (
@@ -192,28 +196,40 @@ def normalize_product_text(text):
         .strip()
     )
 
+    # --------------------------------------------------------
     # Normalize Pro+
+    # --------------------------------------------------------
+
     text = re.sub(
         r"\bpro\s*\+",
         "pro+",
         text
     )
 
+    # --------------------------------------------------------
     # Replace punctuation with spaces
+    # --------------------------------------------------------
+
     text = re.sub(
         r"[/(),;:_\-]+",
         " ",
         text
     )
 
+    # --------------------------------------------------------
     # Keep letters, numbers, spaces and +
+    # --------------------------------------------------------
+
     text = re.sub(
         r"[^a-z0-9ąćęłńóśźż+\s]",
         " ",
         text
     )
 
+    # --------------------------------------------------------
     # Normalize spaces
+    # --------------------------------------------------------
+
     text = re.sub(
         r"\s+",
         " ",
@@ -270,17 +286,89 @@ def matches_product(title, product):
         return False
 
     # --------------------------------------------------------
-    # Remove 5G after confirming both versions match
+    # STRICT LTE MATCHING
+    #
+    # LTE is treated as a globally different product version.
+    # --------------------------------------------------------
+
+    target_has_lte = bool(
+        re.search(
+            r"\blte\b",
+            target_normalized
+        )
+    )
+
+    title_has_lte = bool(
+        re.search(
+            r"\blte\b",
+            title_normalized
+        )
+    )
+
+    if target_has_lte != title_has_lte:
+
+        print(
+            "Product mismatch: LTE version does not match."
+        )
+
+        return False
+
+    # --------------------------------------------------------
+    # SPECIAL 4G RULE — REDMI PAD 2 ONLY
+    #
+    # Prevent normal Redmi Pad 2 products from matching
+    # Redmi Pad 2 4G.
+    #
+    # Does NOT affect:
+    # - Redmi Pad 2 Pro
+    # - Other Redmi products
+    # - Other Xiaomi products
+    # --------------------------------------------------------
+
+    target_is_redmi_pad_2 = bool(
+        re.match(
+            r"^redmi pad 2(?:\s+\d+(?:\s+\d+)?)?$",
+            target_normalized
+        )
+    )
+
+    if target_is_redmi_pad_2:
+
+        target_has_4g = bool(
+            re.search(
+                r"\b4g\b",
+                target_normalized
+            )
+        )
+
+        title_has_4g = bool(
+            re.search(
+                r"\b4g\b",
+                title_normalized
+            )
+        )
+
+        if target_has_4g != title_has_4g:
+
+            print(
+                "Product mismatch: Redmi Pad 2 4G "
+                "version does not match."
+            )
+
+            return False
+
+    # --------------------------------------------------------
+    # Remove network labels after confirming versions match
     # --------------------------------------------------------
 
     target_core = re.sub(
-        r"\b5g\b",
+        r"\b(5g|lte)\b",
         "",
         target_normalized
     )
 
     title_core = re.sub(
-        r"\b5g\b",
+        r"\b(5g|lte)\b",
         "",
         title_normalized
     )
@@ -364,11 +452,6 @@ def matches_product(title, product):
     )
 
     return False
-
-
-# ============================================================
-# RAM / STORAGE EXTRACTION
-# ============================================================
 
 # ============================================================
 # RAM / STORAGE EXTRACTION

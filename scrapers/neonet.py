@@ -241,6 +241,10 @@ def get_color(title):
 # PRODUCT MATCHING
 # ============================================================
 
+# ============================================================
+# PRODUCT MATCHING
+# ============================================================
+
 def normalize_product_text(text):
 
     text = (
@@ -310,6 +314,32 @@ def matches_product(title, product):
     )
 
     # --------------------------------------------------------
+    # LTE matching
+    # --------------------------------------------------------
+
+    target_has_lte = bool(
+        re.search(
+            r"\blte\b",
+            target_normalized
+        )
+    )
+
+    title_has_lte = bool(
+        re.search(
+            r"\blte\b",
+            title_normalized
+        )
+    )
+
+    if target_has_lte != title_has_lte:
+
+        print(
+            "Product mismatch: LTE version does not match."
+        )
+
+        return False
+
+    # --------------------------------------------------------
     # 5G matching
     # --------------------------------------------------------
 
@@ -336,17 +366,43 @@ def matches_product(title, product):
         return False
 
     # --------------------------------------------------------
-    # Remove 5G for product-name comparison
+    # Special rule:
+    #
+    # Base Redmi Pad 2 must NOT match Redmi Pad 2 4G.
+    #
+    # This rule intentionally applies ONLY to the exact
+    # product "Redmi Pad 2" so it will not affect other models.
+    # --------------------------------------------------------
+
+    if target_normalized == "redmi pad 2":
+
+        title_has_4g = bool(
+            re.search(
+                r"\b4g\b",
+                title_normalized
+            )
+        )
+
+        if title_has_4g:
+
+            print(
+                "Product mismatch: Redmi Pad 2 4G version does not match."
+            )
+
+            return False
+
+    # --------------------------------------------------------
+    # Remove LTE and 5G for product-name comparison
     # --------------------------------------------------------
 
     target_core = re.sub(
-        r"\b5g\b",
+        r"\b(?:5g|lte)\b",
         "",
         target_normalized
     )
 
     title_core = re.sub(
-        r"\b5g\b",
+        r"\b(?:5g|lte)\b",
         "",
         title_normalized
     )
@@ -384,15 +440,6 @@ def matches_product(title, product):
 
         # ----------------------------------------------------
         # Prevent base model matching Pro / Pro+ / Ultra etc.
-        #
-        # Example:
-        #
-        # Redmi Note 15
-        #
-        # must NOT match:
-        #
-        # Redmi Note 15 Pro
-        # Redmi Note 15 Pro+
         # ----------------------------------------------------
 
         if end < len(title_tokens):

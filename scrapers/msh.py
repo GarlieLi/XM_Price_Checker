@@ -12,7 +12,6 @@ def clean_price(text):
 
     text = str(text).strip()
 
-    # Polish non-breaking spaces
     text = text.replace("\xa0", " ")
 
     # Remove spaces
@@ -36,15 +35,13 @@ def clean_price(text):
     # Both thousand separator and decimal separator
     elif "," in text and "." in text:
 
-        # Example:
-        # 1.299,99
+        # Example: 1.299,99
         if text.rfind(",") > text.rfind("."):
 
             text = text.replace(".", "")
             text = text.replace(",", ".")
 
-        # Example:
-        # 1,299.99
+        # Example: 1,299.99
         else:
 
             text = text.replace(",", "")
@@ -248,12 +245,9 @@ def matches_product(title, product):
     )
 
     # ========================================================
-    # SPECIAL CASES:
+    # SPECIAL CASES
     #
-    # Some product families may omit "5G" in our target name,
-    # while MediaMarkt includes "5G" in the website title.
-    #
-    # ONLY ignore the 5G difference for:
+    # Ignore the 5G difference only for:
     #
     # - Xiaomi 17 family (excluding Xiaomi 17T family)
     # - POCO X8 family
@@ -305,76 +299,286 @@ def matches_product(title, product):
             "SPECIAL PRODUCT FAMILY: ignoring 5G difference."
         )
 
-        print(
-            "NORMALIZED TARGET AFTER 5G RULE:",
-            target_normalized
-        )
+    # ========================================================
+    # CONNECTIVITY MATCHING
+    #
+    # Distinguish between:
+    #
+    # Wi-Fi
+    # LTE / 4G
+    # 5G
+    # ========================================================
+
+    target_tokens_set = set(
+        target_normalized.split()
+    )
+
+    title_tokens_set = set(
+        title_normalized.split()
+    )
+
+    target_has_5g = (
+        "5g" in target_tokens_set
+    )
+
+    target_has_lte = (
+        "lte" in target_tokens_set
+        or
+        "4g" in target_tokens_set
+    )
+
+    title_has_5g = (
+        "5g" in title_tokens_set
+    )
+
+    title_has_lte = (
+        "lte" in title_tokens_set
+        or
+        "4g" in title_tokens_set
+    )
+
+    # --------------------------------------------------------
+    # Target specifically requires 5G
+    # --------------------------------------------------------
+
+    if target_has_5g and not title_has_5g:
 
         print(
-            "NORMALIZED TITLE AFTER 5G RULE:",
-            title_normalized
+            "Product mismatch: target is 5G "
+            "but website product is not."
         )
+
+        return False
+
+    # --------------------------------------------------------
+    # Target specifically requires LTE / 4G
+    # --------------------------------------------------------
+
+    if target_has_lte and not title_has_lte:
+
+        print(
+            "Product mismatch: target is LTE/4G "
+            "but website product is not."
+        )
+
+        return False
+
+    # --------------------------------------------------------
+    # Target is normal Wi-Fi / non-cellular version
+    #
+    # Reject LTE, 4G and 5G products.
+    # --------------------------------------------------------
+
+    if (
+        not target_has_5g
+        and
+        not target_has_lte
+    ):
+
+        if title_has_5g:
+
+            print(
+                "Product mismatch: website product "
+                "is a 5G version."
+            )
+
+            return False
+
+        if title_has_lte:
+
+            print(
+                "Product mismatch: website product "
+                "is an LTE/4G version."
+            )
+
+            return False
+
+    print(
+        "CONNECTIVITY MATCH: YES"
+    )
 
     # ========================================================
-    # STRICT TOKEN MATCHING
+    # PRODUCT NAME MATCHING
+    #
+    # Require all product-name tokens to appear in the correct
+    # order, but allow specifications between them.
+    #
+    # Example:
+    #
+    # Target:
+    # Redmi Pad 2 Pro 5G
+    #
+    # Website:
+    # Redmi Pad 2 Pro 12.1 5G 6GB 128GB Szary
+    #
+    # The 12.1 screen size should not break the match.
     # ========================================================
 
     target_tokens = target_normalized.split()
 
     title_tokens = title_normalized.split()
 
-    product_modifiers = {
-        "pro",
-        "pro+",
-        "ultra",
-        "max",
-        "lite",
-        "plus",
-        "5g",
-    }
+    position = 0
 
-    for start in range(
-        len(title_tokens) - len(target_tokens) + 1
-    ):
+    for target_token in target_tokens:
 
-        end = start + len(target_tokens)
+        found = False
 
-        # Exact token sequence required
-        if (
-            title_tokens[start:end]
-            != target_tokens
-        ):
+        while position < len(title_tokens):
 
-            continue
+            if title_tokens[position] == target_token:
 
-        # ----------------------------------------------------
-        # Prevent matching an upgraded/different version
-        # ----------------------------------------------------
+                found = True
 
-        if end < len(title_tokens):
+                position += 1
 
-            next_token = title_tokens[end]
+                break
 
-            if next_token in product_modifiers:
+            position += 1
 
-                print(
-                    "Product mismatch: website title has "
-                    f"additional model version '{next_token}'."
-                )
+        if not found:
 
-                continue
+            print(
+                "Product name mismatch."
+            )
 
-        print(
-            "PRODUCT NAME MATCH: YES"
-        )
-
-        return True
+            return False
 
     print(
-        "Product name mismatch."
+        "PRODUCT NAME MATCH: YES"
     )
 
-    return False
+    return True
+
+
+# ============================================================
+# STORAGE NORMALIZATION
+# ============================================================
+
+def normalize_storage(value):
+
+    if value is None:
+        return None
+
+    text = (
+        str(value)
+        .upper()
+        .replace(" ", "")
+    )
+
+    # 1T / 1TB -> 1000
+    match = re.fullmatch(
+        r"(\d+)(T|TB)",
+        text
+    )
+
+    if match:
+
+        return str(
+            int(match.group(1)) * 1000
+        )
+
+    # 512 / 512GB -> 512
+    match = re.search(
+        r"\d+",
+        text
+    )
+
+    if match:
+
+        return match.group()
+
+    return None
+
+
+# ============================================================
+# MEMORY EXTRACTION
+# ============================================================
+
+def extract_memory(text):
+
+    if not text:
+        return None, None
+
+    text = (
+        str(text)
+        .replace("\xa0", " ")
+    )
+
+    # --------------------------------------------------------
+    # Supported formats:
+    #
+    # 12GB/512GB
+    # 12 GB / 512 GB
+    # 12GB 512GB
+    # 12 GB 512 GB
+    # 12/512
+    # 12 / 1TB
+    # --------------------------------------------------------
+
+    patterns = [
+
+        # 12 GB / 512 GB
+        r"(\d+)\s*GB\s*/\s*(\d+)\s*(GB|TB|T)\b",
+
+        # 12GB 512GB
+        r"(\d+)\s*GB\s+(\d+)\s*(GB|TB|T)\b",
+
+        # 12 / 512 GB
+        r"(\d+)\s*/\s*(\d+)\s*(GB|TB|T)\b",
+
+        # 12/512
+        r"\b(\d+)\s*/\s*(\d+)\b",
+    ]
+
+    for pattern in patterns:
+
+        match = re.search(
+            pattern,
+            text,
+            re.IGNORECASE
+        )
+
+        if not match:
+            continue
+
+        ram = match.group(1)
+
+        storage_value = match.group(2)
+
+        # Pattern 12/512 has no unit
+        if len(match.groups()) >= 3:
+
+            storage_unit = match.group(3)
+
+        else:
+
+            storage_unit = "GB"
+
+        if storage_unit:
+
+            storage_unit = storage_unit.upper()
+
+        else:
+
+            storage_unit = "GB"
+
+        if storage_unit in (
+            "TB",
+            "T"
+        ):
+
+            storage = str(
+                int(storage_value) * 1000
+            )
+
+        else:
+
+            storage = storage_value
+
+        return ram, storage
+
+    return None, None
 
 
 # ============================================================
@@ -430,6 +634,8 @@ def get_availability(card_text):
         "dostarczymy",
 
         "dostawa już jutro",
+
+        "dodaj do koszyka",
     ]
 
     for phrase in available_phrases:
@@ -437,18 +643,6 @@ def get_availability(card_text):
         if phrase in text:
 
             return "Available"
-
-    # --------------------------------------------------------
-    # Add to cart
-    # --------------------------------------------------------
-
-    if (
-        "dodaj do koszyka" in text
-        or
-        "add to cart" in text
-    ):
-
-        return "Available"
 
     return "Unknown"
 
@@ -465,13 +659,12 @@ def extract_price(card):
         .strip()
     )
 
-    # --------------------------------------------------------
-    # Find normal decimal prices
-    #
     # Examples:
+    #
     # 399,99 zł
     # 799,00 zł
-    # --------------------------------------------------------
+    # 1 299,00 zł
+    # 1.299,00 zł
 
     price_matches = re.findall(
         r"\b\d{1,5}(?:[ .]\d{3})*[,.]\d{2}\s*zł\b",
@@ -483,66 +676,35 @@ def extract_price(card):
 
         return None
 
-    # --------------------------------------------------------
-    # Use the first normal product price.
-    #
-    # Promotional amounts such as:
-    # "120 zł do BP"
-    #
-    # do not have decimal places, so they are excluded.
-    # --------------------------------------------------------
-
-    price = clean_price(
+    return clean_price(
         price_matches[0]
     )
 
-    return price
 
 # ============================================================
-# STORAGE NORMALIZATION
+# FALLBACK STORAGE FORMAT
 # ============================================================
 
-def normalize_storage(value):
+def format_storage(value):
 
-    if value is None:
+    text = str(value).strip()
 
-        return None
+    if text.upper() in (
+        "1T",
+        "1TB"
+    ):
 
-    text = (
-        str(value)
-        .upper()
-        .replace(" ", "")
-    )
+        return "1 TB"
 
-    # --------------------------------------------------------
-    # 1T / 1TB -> 1000
-    # --------------------------------------------------------
-
-    match = re.fullmatch(
-        r"(\d+)(T|TB)",
-        text
-    )
-
-    if match:
-
-        return str(
-            int(match.group(1)) * 1000
-        )
-
-    # --------------------------------------------------------
-    # 512 / 512GB -> 512
-    # --------------------------------------------------------
-
-    match = re.search(
+    if re.fullmatch(
         r"\d+",
         text
-    )
+    ):
 
-    if match:
+        return text + " GB"
 
-        return match.group()
+    return text
 
-    return None
 
 # ============================================================
 # PRODUCTS
@@ -591,11 +753,6 @@ def get_products(page, product):
         str(product["ram"])
     )
 
-    # Normalize:
-    # 512   -> 512
-    # 512GB -> 512
-    # 1T    -> 1000
-    # 1TB   -> 1000
     target_storage = normalize_storage(
         product["storage"]
     )
@@ -614,6 +771,53 @@ def get_products(page, product):
         "TARGET STORAGE:",
         target_storage,
         "GB"
+    )
+
+    # --------------------------------------------------------
+    # Count matching genuine product cards
+    #
+    # Used only for safe fallback when MediaMarkt does not
+    # display RAM/storage in the title.
+    # --------------------------------------------------------
+
+    matching_cards = []
+
+    for i in range(count):
+
+        card = cards.nth(i)
+
+        links = card.locator("a")
+
+        for j in range(links.count()):
+
+            try:
+
+                text = (
+                    links.nth(j)
+                    .inner_text()
+                    .strip()
+                )
+
+            except Exception:
+
+                continue
+
+            if not text:
+
+                continue
+
+            if matches_product(
+                text,
+                product
+            ):
+
+                matching_cards.append(i)
+
+                break
+
+    print(
+        "MATCHING PRODUCT CARDS:",
+        matching_cards
     )
 
     # --------------------------------------------------------
@@ -637,7 +841,7 @@ def get_products(page, product):
         try:
 
             # ------------------------------------------------
-            # Find product title
+            # Find matching product title
             # ------------------------------------------------
 
             links = card.locator("a")
@@ -664,10 +868,6 @@ def get_products(page, product):
 
                     continue
 
-                # ------------------------------------------------
-                # Product matching
-                # ------------------------------------------------
-
                 if matches_product(
                     text,
                     product
@@ -691,79 +891,74 @@ def get_products(page, product):
             )
 
             # ------------------------------------------------
-            # RAM / Storage
-            #
-            # Supported examples:
-            #
-            # 12 GB / 512 GB
-            # 12GB/512GB
-            # 12 / 512 GB
-            # 12/512 GB
-            #
-            # 12 GB / 1 TB
-            # 12GB/1TB
-            # 12 / 1 TB
-            # 12/1T
+            # CARD TEXT
             # ------------------------------------------------
 
-            memory_match = re.search(
-                r"(\d+)\s*(?:GB)?\s*/\s*"
-                r"(\d+)\s*(GB|TB|T)\b",
-                title,
-                re.IGNORECASE
+            card_text = (
+                card
+                .inner_text()
+                .strip()
             )
 
-            if not memory_match:
+            # ------------------------------------------------
+            # Extract RAM/storage
+            #
+            # First try title.
+            # Then try complete card text.
+            # ------------------------------------------------
+
+            ram, storage = extract_memory(
+                title
+            )
+
+            if ram is None:
 
                 print(
                     "RAM/storage not found in title."
                 )
 
-                continue
-
-            ram = memory_match.group(1)
-
-            storage_value = (
-                memory_match.group(2)
-            )
-
-            storage_unit = (
-                memory_match.group(3)
-                .upper()
-            )
-
-            # ------------------------------------------------
-            # Convert TB / T to GB
-            # ------------------------------------------------
-
-            if storage_unit in (
-                "TB",
-                "T"
-            ):
-
-                storage = str(
-                    int(storage_value) * 1000
+                print(
+                    "Trying complete card text..."
                 )
 
-            else:
-
-                storage = storage_value
-
-            print(
-                "RAM:",
-                ram,
-                "GB"
-            )
-
-            print(
-                "STORAGE:",
-                storage,
-                "GB"
-            )
+                ram, storage = extract_memory(
+                    card_text
+                )
 
             # ------------------------------------------------
-            # Match RAM / Storage
+            # SAFE FALLBACK
+            #
+            # Some MediaMarkt cards do not display memory.
+            #
+            # Only use target configuration when there is
+            # exactly one matching genuine product card.
             # ------------------------------------------------
+
+            if ram is None:
+
+                if len(matching_cards) == 1:
+
+                    print(
+                        "MEMORY NOT DISPLAYED ON CARD."
+                    )
+
+                    print(
+                        "SAFE FALLBACK: only one matching "
+                        "product card found."
+                    )
+
+                    ram = target_ram
+
+                    storage = target_storage
+
+                else:
+
+                    print(
+                        "RAM/storage not found and fallback "
+                        "is not safe."
+                    )
+
+                    continue
 
             actual_ram = re.sub(
                 r"\D",
@@ -786,6 +981,10 @@ def get_products(page, product):
                 "GB"
             )
 
+            # ------------------------------------------------
+            # Match RAM / Storage
+            # ------------------------------------------------
+
             if (
                 actual_ram != target_ram
                 or
@@ -807,34 +1006,6 @@ def get_products(page, product):
             # ------------------------------------------------
 
             product_found = True
-
-            # ------------------------------------------------
-            # CARD TEXT
-            # ------------------------------------------------
-
-            card_text = (
-                card
-                .inner_text()
-                .strip()
-            )
-
-            print()
-
-            print(
-                "CARD TEXT:"
-            )
-
-            print(
-                "-" * 60
-            )
-
-            print(
-                card_text
-            )
-
-            print(
-                "-" * 60
-            )
 
             # ------------------------------------------------
             # COLOR
@@ -888,10 +1059,10 @@ def get_products(page, product):
                     color,
 
                 "ram":
-                    ram,
+                    actual_ram,
 
                 "storage":
-                    storage,
+                    actual_storage,
 
                 "price":
                     price,
@@ -926,7 +1097,6 @@ def get_products(page, product):
     if not product_found:
 
         print()
-
         print("=" * 60)
 
         print(
@@ -934,26 +1104,6 @@ def get_products(page, product):
         )
 
         print("=" * 60)
-
-        # Better formatting for fallback storage
-        fallback_storage = str(
-            product["storage"]
-        )
-
-        if fallback_storage.upper() in (
-            "1T",
-            "1TB"
-        ):
-
-            fallback_storage = "1 TB"
-
-        elif not re.search(
-            r"[A-Z]",
-            fallback_storage,
-            re.IGNORECASE
-        ):
-
-            fallback_storage += " GB"
 
         results.append({
 
@@ -967,7 +1117,9 @@ def get_products(page, product):
                 str(product["ram"]) + " GB",
 
             "storage":
-                fallback_storage,
+                format_storage(
+                    product["storage"]
+                ),
 
             "price":
                 None,
@@ -981,7 +1133,6 @@ def get_products(page, product):
     # ========================================================
 
     print()
-
     print("=" * 60)
 
     print(
@@ -998,6 +1149,7 @@ def get_products(page, product):
         )
 
     return results
+
 
 # ============================================================
 # UNIFIED SCRAPER INTERFACE

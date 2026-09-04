@@ -132,7 +132,7 @@ def matches_product(title, product):
     # SPECIAL CASES:
     #
     # Some product families may omit 5G in our target name,
-    # while Media Expert includes 5G in the website title.
+    # while the website includes 5G in the title.
     #
     # For these families only, ignore the 5G difference:
     #
@@ -159,6 +159,82 @@ def matches_product(title, product):
         or
         is_poco_x8_family
     )
+
+    # --------------------------------------------------------
+    # STYLUS / PEN / RYSIK BUNDLE MATCHING
+    #
+    # Products sold with a Stylus/Rysik must not be mixed with
+    # the normal product unless the target explicitly contains
+    # a Stylus/Rysik/Pen indicator.
+    #
+    # Media Expert may use the Polish word "Rysik".
+    # --------------------------------------------------------
+
+    stylus_pattern = (
+        r"\b(?:stylus|rysik)\b"
+    )
+
+    target_has_stylus = bool(
+        re.search(
+            stylus_pattern,
+            target_normalized
+        )
+    )
+
+    title_has_stylus = bool(
+        re.search(
+            stylus_pattern,
+            title_normalized
+        )
+    )
+
+    print(
+        "TARGET HAS STYLUS/RYSIK:",
+        target_has_stylus
+    )
+
+    print(
+        "TITLE HAS STYLUS/RYSIK:",
+        title_has_stylus
+    )
+
+    if target_has_stylus != title_has_stylus:
+
+        print(
+            "Product mismatch: Stylus/Rysik bundle "
+            "does not match."
+        )
+
+        return False
+
+    # --------------------------------------------------------
+    # LTE / 4G MATCHING
+    #
+    # LTE versions must remain different from normal/Wi-Fi
+    # versions.
+    # --------------------------------------------------------
+
+    target_has_lte = bool(
+        re.search(
+            r"\b(?:lte|4g)\b",
+            target_normalized
+        )
+    )
+
+    title_has_lte = bool(
+        re.search(
+            r"\b(?:lte|4g)\b",
+            title_normalized
+        )
+    )
+
+    if target_has_lte != title_has_lte:
+
+        print(
+            "Product mismatch: LTE/4G version does not match."
+        )
+
+        return False
 
     # --------------------------------------------------------
     # 5G MATCHING
@@ -200,17 +276,20 @@ def matches_product(title, product):
         )
 
     # --------------------------------------------------------
-    # Remove 5G for core product comparison
+    # Remove connectivity labels for core product comparison
+    #
+    # LTE/4G has already been checked strictly above.
+    # 5G has already been checked according to the rules above.
     # --------------------------------------------------------
 
     target_core = re.sub(
-        r"\b5g\b",
+        r"\b(?:5g|lte|4g)\b",
         "",
         target_normalized
     )
 
     title_core = re.sub(
-        r"\b5g\b",
+        r"\b(?:5g|lte|4g)\b",
         "",
         title_normalized
     )
@@ -235,11 +314,6 @@ def matches_product(title, product):
     # Product modifiers
     #
     # These must remain distinct.
-    #
-    # Xiaomi 17 != Xiaomi 17 Ultra
-    # Xiaomi 17T != Xiaomi 17T Pro
-    # Redmi Note 15 != Redmi Note 15 Pro
-    # POCO X8 Pro != POCO X8 Pro Max
     # --------------------------------------------------------
 
     product_modifiers = {

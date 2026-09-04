@@ -3,18 +3,18 @@ import sys
 import json
 
 
-PROJECT_FOLDER = r"C:\Users\New\.vscode\Python_projects\XM_Price_Checker"
+PROJECT_FOLDER = r"C:\Users\garli\Python_Projects\XM_Price_Checker"
 
 PRODUCT = {
-    "target_id": "P85-4-64",
-    "name": "Redmi Pad 2 9.7",
-    "model": "P85",
-    "ram": "4",
-    "storage": "64"
+    "target_id": "P82-8-256",
+    "name": "Xiaomi Pad 8",
+    "model": "P82",
+    "ram": "8",
+    "storage": "256"
 }
 
 URL = (
-    "https://www.mediaexpert.pl/search?query%5bmenu_item%5d=&query%5bquerystring%5d=Redmi%20Pad%202%209.7%22%204%2F64"
+    "https://www.mediaexpert.pl/search?query%5bmenu_item%5d=&query%5bquerystring%5d=Xiaomi%20Pad%208%208%2F256"
 )
 
 
