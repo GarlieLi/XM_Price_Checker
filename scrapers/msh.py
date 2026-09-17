@@ -747,6 +747,85 @@ def get_availability(card_text):
 
     return "Unknown"
 
+# ============================================================
+# SELLER / OFFICIAL MEDIA MARKT CHECK
+# ============================================================
+
+def is_official_media_markt_offer(card_text):
+
+    if not card_text:
+
+        return False
+
+    text = (
+        str(card_text)
+        .lower()
+        .replace("\xa0", " ")
+    )
+
+    # --------------------------------------------------------
+    # Marketplace offer
+    #
+    # Example:
+    #
+    # Sprzedaż i wysyłka przez Deluxury
+    #
+    # These offers must NOT be used.
+    # --------------------------------------------------------
+
+    seller_match = re.search(
+        r"sprzedaż\s+i\s+wysyłka\s+przez\s+([^\n]+)",
+        text,
+        re.IGNORECASE
+    )
+
+    if seller_match:
+
+        seller = (
+            seller_match
+            .group(1)
+            .strip()
+        )
+
+        print(
+            "SELLER DETECTED:",
+            seller
+        )
+
+        # ----------------------------------------------------
+        # Accept only MediaMarkt as official seller
+        # ----------------------------------------------------
+
+        if "mediamarkt" in seller:
+
+            print(
+                "OFFICIAL MEDIA MARKT SELLER: YES"
+            )
+
+            return True
+
+        print(
+            "MARKETPLACE SELLER DETECTED:",
+            seller
+        )
+
+        return False
+
+    # --------------------------------------------------------
+    # No marketplace seller information
+    #
+    # This is the normal official MediaMarkt offer format.
+    # --------------------------------------------------------
+
+    print(
+        "NO MARKETPLACE SELLER DETECTED."
+    )
+
+    print(
+        "ASSUMING OFFICIAL MEDIA MARKT OFFER."
+    )
+
+    return True
 
 # ============================================================
 # PRICE EXTRACTION
@@ -1000,6 +1079,26 @@ def get_products(page, product):
                 .inner_text()
                 .strip()
             )
+
+            # ------------------------------------------------
+            # OFFICIAL MEDIA MARKT SELLER CHECK
+            #
+            # Ignore marketplace offers such as:
+            #
+            # Sprzedaż i wysyłka przez Deluxury
+            #
+            # Only official MediaMarkt offers should be used.
+            # ------------------------------------------------
+
+            if not is_official_media_markt_offer(
+                card_text
+            ):
+
+                print(
+                    "Skipping marketplace offer."
+                )
+
+                continue
 
             # ------------------------------------------------
             # Extract RAM/storage
